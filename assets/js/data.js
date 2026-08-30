@@ -1,5 +1,13 @@
 /* Code Library — snippet dataset.
-   Plain JS array (not fetched) so the site also works when opened via file://. */
+   Plain JS array (not fetched) so the site also works when opened via file://.
+   Scope: web development only — vanilla JavaScript (frontend), Node.js (backend / full stack),
+   and Tailwind CSS. */
+
+const LANGUAGE_LABELS = {
+  javascript: "JavaScript",
+  node: "Node.js",
+  tailwind: "Tailwind CSS",
+};
 
 const SNIPPETS = [
   {
@@ -61,560 +69,575 @@ console.log("Waiting for 300ms of silence...");`,
     },
   },
   {
-    id: "quicksort",
-    title: "Quicksort",
+    id: "throttle-function",
+    title: "Throttle Function",
     language: "javascript",
-    tags: ["algorithms", "sorting", "recursion"],
-    difficulty: "Intermediate",
-    description: "A classic divide-and-conquer sorting algorithm with average-case O(n log n) performance.",
-    explanation: `Quicksort sorts an array by repeatedly partitioning it around a chosen "pivot" value.
+    tags: ["performance", "events", "scroll"],
+    difficulty: "Beginner",
+    description: "Ensure a function runs at most once every fixed interval — ideal for scroll and mousemove handlers that fire dozens of times a second.",
+    explanation: `Throttling guarantees a function runs on a steady cadence no matter how rapidly it's triggered — unlike debounce, which waits for silence, throttle keeps firing at a fixed rate.
 
 **How it works**
 
-1. If the array has 0 or 1 elements, it's already sorted — this is the recursion's base case.
-2. Otherwise, pick a pivot (here, the middle element) to compare everything else against.
-3. Split the remaining elements into three buckets: \`left\` (smaller than the pivot), \`middle\` (equal to it), and \`right\` (larger than it).
-4. Recursively quicksort \`left\` and \`right\`, then stitch the three buckets back together as \`[...left, ...middle, ...right]\`.
+1. A \`isThrottled\` flag, closed over between calls, tracks whether we're inside a "cooldown" window.
+2. The first call runs \`fn\` immediately and flips \`isThrottled\` to \`true\`.
+3. Every call that arrives while \`isThrottled\` is \`true\` is silently dropped — the function simply doesn't run for them.
+4. A \`setTimeout\` clears the flag after \`limit\` milliseconds, opening the door for the *next* call to run immediately and start a new cooldown.
 
-Because each recursive call works on a strictly smaller slice, the recursion always terminates. The average time complexity is O(n log n), though a poorly chosen pivot on already-sorted data can degrade to O(n²) — production sorts usually randomize or median-of-three the pivot to avoid that.`,
-    code: `function quicksort(arr) {
-  if (arr.length <= 1) return arr;
+This makes throttle the right tool for things like scroll-position tracking or infinite-scroll loading checks, where you want regular updates but not one for every single scroll event.`,
+    code: `function throttle(fn, limit = 200) {
+  let isThrottled = false;
 
-  const pivotIndex = Math.floor(arr.length / 2);
-  const pivot = arr[pivotIndex];
+  return function throttled(...args) {
+    if (isThrottled) return;
 
-  const left = [];
-  const middle = [];
-  const right = [];
+    fn.apply(this, args);
+    isThrottled = true;
 
-  for (const value of arr) {
-    if (value < pivot) left.push(value);
-    else if (value > pivot) right.push(value);
-    else middle.push(value);
-  }
-
-  return [...quicksort(left), ...middle, ...quicksort(right)];
+    setTimeout(() => {
+      isThrottled = false;
+    }, limit);
+  };
 }
 
 // Usage
-console.log(quicksort([5, 3, 8, 1, 9, 2]));
-// [1, 2, 3, 5, 8, 9]`,
+const handleScroll = throttle(() => {
+  console.log("Scroll position:", window.scrollY);
+}, 200);
+
+window.addEventListener("scroll", handleScroll);`,
     preview: {
       type: "js",
-      run: `function quicksort(arr) {
-  if (arr.length <= 1) return arr;
-
-  const pivotIndex = Math.floor(arr.length / 2);
-  const pivot = arr[pivotIndex];
-
-  const left = [];
-  const middle = [];
-  const right = [];
-
-  for (const value of arr) {
-    if (value < pivot) left.push(value);
-    else if (value > pivot) right.push(value);
-    else middle.push(value);
-  }
-
-  return [...quicksort(left), ...middle, ...quicksort(right)];
+      run: `function throttle(fn, limit = 200) {
+  let isThrottled = false;
+  return function throttled(...args) {
+    if (isThrottled) return;
+    fn.apply(this, args);
+    isThrottled = true;
+    setTimeout(() => { isThrottled = false; }, limit);
+  };
 }
 
-const input = [5, 3, 8, 1, 9, 2];
-console.log("Input: ", JSON.stringify(input));
-console.log("Sorted:", JSON.stringify(quicksort(input)));`,
+let runs = 0;
+const throttled = throttle(() => {
+  runs++;
+  console.log("Ran! (execution #" + runs + ")");
+}, 200);
+
+console.log("Calling the throttled function every 60ms, 6 times...");
+let i = 0;
+const interval = setInterval(() => {
+  i++;
+  console.log("  call #" + i);
+  throttled();
+  if (i === 6) clearInterval(interval);
+}, 60);`,
     },
   },
   {
-    id: "flexbox-center",
-    title: "Perfect Centering",
-    language: "css",
-    tags: ["layout", "flexbox"],
-    difficulty: "Beginner",
-    description: "The one-liner combo that centers anything, both horizontally and vertically, inside its parent.",
-    explanation: `This is the modern answer to "how do I center a div" — a question that used to require table hacks or absolute-positioning tricks.
+    id: "fetch-with-timeout",
+    title: "Fetch with a Timeout",
+    language: "javascript",
+    tags: ["fetch", "async", "networking", "abortcontroller"],
+    difficulty: "Intermediate",
+    description: "Wrap the Fetch API so a slow request automatically aborts after a timeout instead of hanging forever.",
+    explanation: `By default, \`fetch\` has no timeout — a slow or hung server leaves your request pending indefinitely unless you build cancellation in yourself.
 
 **How it works**
 
-1. \`display: flex\` turns the container into a flex container, activating the flexbox layout algorithm for its direct children.
-2. \`justify-content: center\` centers children along the *main axis*, which defaults to horizontal (row).
-3. \`align-items: center\` centers children along the *cross axis*, which defaults to vertical.
-4. \`min-height\` gives the container somewhere to center within — without height, there's no vertical space to distribute.
+1. An \`AbortController\` is created per request; its \`signal\` is passed into \`fetch\`'s options, giving us a handle to cancel that specific request.
+2. \`setTimeout\` schedules \`controller.abort()\` to fire after \`timeoutMs\` — if the server hasn't responded by then, this cancels the in-flight request, which makes \`fetch\` reject with an \`AbortError\`.
+3. \`clearTimeout\` in the \`finally\` block cancels that pending timer as soon as the request *does* finish, success or failure — otherwise you'd fire a needless \`abort()\` on an already-completed request.
+4. The \`try/catch\` re-throws a friendlier \`Error\` when the abort was caused by our own timeout, so calling code can distinguish "timed out" from other network failures if it wants to.
 
-Because flexbox recalculates on every resize, the centered content stays centered responsively with zero extra JavaScript.`,
-    code: `.center-container {
-  display: flex;
-  justify-content: center; /* horizontal */
-  align-items: center;     /* vertical */
-  min-height: 100vh;
+This pattern is the backbone of resilient front-end networking: a slow third-party API can't hang your UI forever.`,
+    code: `async function fetchWithTimeout(url, options = {}, timeoutMs = 5000) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    const res = await fetch(url, { ...options, signal: controller.signal });
+    if (!res.ok) throw new Error(\`HTTP \${res.status}\`);
+    return await res.json();
+  } catch (err) {
+    if (err.name === "AbortError") {
+      throw new Error(\`Request timed out after \${timeoutMs}ms\`);
+    }
+    throw err;
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
-/* Works for any child, no matter its size */
-.center-container .card {
-  width: 320px;
-  padding: 2rem;
-}`,
+// Usage
+const data = await fetchWithTimeout("/api/slow-endpoint", {}, 3000);`,
+    preview: {
+      type: "js",
+      run: `function fakeSlowRequest(delayMs) {
+  return new Promise((resolve) => setTimeout(() => resolve({ data: "payload" }), delayMs));
+}
+
+async function fetchWithTimeout(promiseFactory, timeoutMs) {
+  let timer;
+  const timeout = new Promise((_, reject) => {
+    timer = setTimeout(() => reject(new Error("Request timed out after " + timeoutMs + "ms")), timeoutMs);
+  });
+
+  try {
+    const result = await Promise.race([promiseFactory(), timeout]);
+    console.log("Success:", JSON.stringify(result));
+  } catch (err) {
+    console.log(err.message);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+(async () => {
+  console.log("Request 1 — server responds in 200ms, timeout is 500ms");
+  await fetchWithTimeout(() => fakeSlowRequest(200), 500);
+
+  console.log("Request 2 — server responds in 800ms, timeout is 400ms");
+  await fetchWithTimeout(() => fakeSlowRequest(800), 400);
+})();`,
+    },
+  },
+  {
+    id: "localstorage-json-helper",
+    title: "LocalStorage JSON Helper",
+    language: "javascript",
+    tags: ["browser-apis", "storage", "utilities"],
+    difficulty: "Beginner",
+    description: "Safely read and write JSON-serializable values to localStorage without repeating try/catch and JSON.parse everywhere.",
+    explanation: `\`localStorage\` only stores strings, so every real value needs to be serialized going in and parsed coming out — and parsing can throw if the stored value is corrupted or missing.
+
+**How it works**
+
+1. \`setItem\` calls \`JSON.stringify\` on whatever value you pass — objects, arrays, numbers, booleans all survive the round trip, unlike raw \`localStorage.setItem\`, which would silently coerce them to the string \`"[object Object]"\`.
+2. \`getItem\` wraps the read in a \`try/catch\`: if the key doesn't exist, \`localStorage.getItem\` returns \`null\`, and \`JSON.parse(null)\` actually parses to the value \`null\` — so that case works naturally without special-casing.
+3. If the stored string is corrupted (edited by hand, or written by an older version of your app with a different shape), \`JSON.parse\` throws — the \`catch\` swallows that and falls back to \`defaultValue\` instead of crashing the whole page.
+4. Because both functions go through this one helper, every part of the app gets the same safe behavior for free instead of repeating \`JSON.parse(localStorage.getItem(...))\`, and forgetting the try/catch, in a dozen places.
+
+This kind of small wrapper is exactly the sort of thing that's easy to skip until the one time a corrupted value crashes production.`,
+    code: `const storage = {
+  setItem(key, value) {
+    localStorage.setItem(key, JSON.stringify(value));
+  },
+
+  getItem(key, defaultValue = null) {
+    try {
+      const raw = localStorage.getItem(key);
+      return raw === null ? defaultValue : JSON.parse(raw);
+    } catch {
+      return defaultValue;
+    }
+  },
+
+  removeItem(key) {
+    localStorage.removeItem(key);
+  },
+};
+
+// Usage
+storage.setItem("preferences", { theme: "dark", fontSize: 16 });
+const prefs = storage.getItem("preferences", {});
+console.log(prefs.theme); // "dark"`,
+    preview: {
+      type: "js",
+      run: `// This preview uses a plain object as a stand-in for real localStorage,
+// since a sandboxed preview frame can't access the page's actual storage.
+const fakeLocalStorage = {};
+
+const storage = {
+  setItem(key, value) {
+    fakeLocalStorage[key] = JSON.stringify(value);
+  },
+  getItem(key, defaultValue = null) {
+    try {
+      const raw = key in fakeLocalStorage ? fakeLocalStorage[key] : null;
+      return raw === null ? defaultValue : JSON.parse(raw);
+    } catch {
+      return defaultValue;
+    }
+  },
+};
+
+storage.setItem("preferences", { theme: "dark", fontSize: 16 });
+console.log("Raw stored string:", fakeLocalStorage["preferences"]);
+
+const prefs = storage.getItem("preferences", {});
+console.log("Read back:", JSON.stringify(prefs));
+console.log("prefs.theme =", prefs.theme);
+
+console.log("Missing key with a default:", JSON.stringify(storage.getItem("missing-key", { fallback: true })));`,
+    },
+  },
+  {
+    id: "minimal-http-server",
+    title: "Minimal HTTP Server",
+    language: "node",
+    tags: ["http", "server", "fundamentals"],
+    difficulty: "Beginner",
+    description: "Spin up a plain HTTP server with Node's built-in http module — no framework required.",
+    explanation: `Node ships with a full HTTP server implementation out of the box; frameworks like Express are built on top of exactly this module.
+
+**How it works**
+
+1. \`http.createServer\` takes a request handler — a function called once per incoming request with \`req\` (the incoming message) and \`res\` (the object you use to send a response back).
+2. Every response needs \`res.end()\` called eventually, or the client's connection hangs waiting for a body that never arrives.
+3. \`res.writeHead\` sets the status code and headers *before* any body is written — headers can't be changed once the first chunk of the body has been sent.
+4. Routing is manual here: \`req.url\` and \`req.method\` are just plain strings, so a simple \`if\`/\`else\` chain is enough to route a handful of endpoints without pulling in a router library.
+5. \`server.listen(port)\` starts accepting connections on that port — the process stays alive as long as the server is listening.
+
+This is worth understanding even if you always reach for Express, since it demystifies what a "web framework" is actually doing underneath.`,
+    code: `const http = require("http");
+
+const server = http.createServer((req, res) => {
+  if (req.method === "GET" && req.url === "/") {
+    res.writeHead(200, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({ message: "Hello from Node!" }));
+    return;
+  }
+
+  res.writeHead(404, { "Content-Type": "application/json" });
+  res.end(JSON.stringify({ error: "Not found" }));
+});
+
+server.listen(3000, () => {
+  console.log("Server running at http://localhost:3000");
+});`,
+    preview: {
+      type: "text",
+      output: `$ node server.js
+Server running at http://localhost:3000
+
+$ curl http://localhost:3000/
+{"message":"Hello from Node!"}
+
+$ curl http://localhost:3000/unknown
+{"error":"Not found"}`,
+      note: "This starts a real server process, so the preview shows the terminal output of running it and hitting it with curl rather than executing it in the browser.",
+    },
+  },
+  {
+    id: "express-async-route",
+    title: "Async Error Handling in Express",
+    language: "node",
+    tags: ["express", "middleware", "error-handling"],
+    difficulty: "Intermediate",
+    description: "Handle async errors in an Express route correctly, so a rejected promise doesn't crash the process or hang the request.",
+    explanation: `Express route handlers that use \`async\`/\`await\` have a sharp edge: if the returned promise rejects, Express 4 doesn't catch it automatically — the request just hangs, and the error is silently swallowed.
+
+**How it works**
+
+1. \`asyncHandler\` wraps a route function and returns a new function with the same \`(req, res, next)\` signature that Express expects.
+2. Inside, it calls the original \`fn\` and immediately calls \`.catch(next)\` on the returned promise — \`next\` is Express's own mechanism for forwarding an error to its error-handling middleware.
+3. Because \`.catch(next)\` is attached to every call, any rejection anywhere inside the async route — a failed database query, a thrown error, a failed \`await\` — gets funneled to \`next(err)\` instead of disappearing.
+4. The error-handling middleware, the one with four parameters \`(err, req, res, next)\`, is Express's designated catch-all — it runs whenever \`next\` is called with a value, and is the right place to log the error and send a proper error response.
+
+Express 5 fixes this automatically for async handlers, but a huge amount of code still runs on Express 4, where this wrapper (or an equivalent library like \`express-async-errors\`) is effectively required for async routes to fail safely.`,
+    code: `function asyncHandler(fn) {
+  return (req, res, next) => {
+    Promise.resolve(fn(req, res, next)).catch(next);
+  };
+}
+
+app.get(
+  "/users/:id",
+  asyncHandler(async (req, res) => {
+    const user = await db.users.findById(req.params.id);
+    if (!user) {
+      const err = new Error("User not found");
+      err.status = 404;
+      throw err;
+    }
+    res.json(user);
+  })
+);
+
+// Catches whatever asyncHandler forwards via next(err)
+app.use((err, req, res, next) => {
+  console.error(err);
+  res.status(err.status || 500).json({ error: err.message });
+});`,
+    preview: {
+      type: "text",
+      output: `$ curl http://localhost:3000/users/42
+{"id":42,"name":"Ada Lovelace"}
+
+$ curl http://localhost:3000/users/999
+{"error":"User not found"}
+# server log: 404 GET /users/999
+
+$ curl http://localhost:3000/users/abc
+{"error":"Cast to ObjectId failed for value \\"abc\\""}
+# server log: 500 GET /users/abc — error forwarded by asyncHandler instead of hanging`,
+      note: "This runs inside a real Express process, so the preview shows example request/response pairs rather than executing it in the browser.",
+    },
+  },
+  {
+    id: "env-config-loader",
+    title: "Environment Config Loader",
+    language: "node",
+    tags: ["configuration", "environment", "validation"],
+    difficulty: "Beginner",
+    description: "Load and validate environment variables once at startup, so a missing config value fails fast instead of crashing deep inside the app later.",
+    explanation: `Reading \`process.env.SOMETHING\` directly, scattered across a codebase, means a typo'd variable name or a missing \`.env\` entry silently becomes \`undefined\` and only breaks something much later — often in production.
+
+**How it works**
+
+1. All expected environment variables are declared once, in one place, with a required flag and an optional default value.
+2. The loader iterates over that declaration, pulling each value from \`process.env\`.
+3. If a variable is marked \`required\` and missing, it's collected into an \`errors\` array instead of immediately throwing — this way, running the app once tells you about *every* missing variable, not just the first one it happens to hit.
+4. If \`errors\` isn't empty after checking everything, the process exits immediately with a clear message — failing at startup, obviously, is far better than failing three requests deep into real traffic.
+5. The returned \`config\` object gives the rest of the app validated access — e.g. \`config.port\` instead of \`Number(process.env.PORT) || 3000\` repeated everywhere.
+
+This "validate everything at boot" pattern turns an entire category of production incidents into a startup crash you catch in the first five seconds of \`npm start\`.`,
+    code: `function loadConfig(schema) {
+  const config = {};
+  const errors = [];
+
+  for (const [key, { required, default: fallback }] of Object.entries(schema)) {
+    const value = process.env[key] ?? fallback;
+
+    if (required && value === undefined) {
+      errors.push(\`Missing required environment variable: \${key}\`);
+      continue;
+    }
+
+    config[key] = value;
+  }
+
+  if (errors.length > 0) {
+    console.error("Invalid configuration:\\n" + errors.join("\\n"));
+    process.exit(1);
+  }
+
+  return config;
+}
+
+const config = loadConfig({
+  PORT: { required: false, default: 3000 },
+  DATABASE_URL: { required: true },
+  NODE_ENV: { required: false, default: "development" },
+});`,
+    preview: {
+      type: "text",
+      output: `$ DATABASE_URL=postgres://localhost/app node server.js
+# config loaded: { PORT: 3000, DATABASE_URL: "postgres://localhost/app", NODE_ENV: "development" }
+Server started on port 3000
+
+$ node server.js
+Invalid configuration:
+Missing required environment variable: DATABASE_URL
+# process exits with code 1 — never even attempts to start`,
+      note: "This validates real process.env values at startup, so the preview shows two example runs rather than executing it in the browser.",
+    },
+  },
+  {
+    id: "json-file-store",
+    title: "Tiny JSON File Store",
+    language: "node",
+    tags: ["filesystem", "async", "persistence"],
+    difficulty: "Intermediate",
+    description: "A tiny file-backed JSON store using the fs/promises API — good enough for local tooling, seed scripts, or small side projects.",
+    explanation: `For something too small to justify a real database, a single JSON file plus a thin read/write wrapper is often all you need.
+
+**How it works**
+
+1. \`read()\` uses \`fs.readFile\` with the \`"utf-8"\` encoding so it returns a string directly rather than a \`Buffer\`, then \`JSON.parse\`s it into a plain JS value.
+2. If the file doesn't exist yet, \`readFile\` rejects with an error whose \`code\` is \`"ENOENT"\` — that specific case is caught and treated as "start from an empty array" rather than a real failure, so the store works correctly on its very first run.
+3. \`write()\` calls \`JSON.stringify\` with indentation (\`null, 2\`) purely so the file stays human-readable if you open it directly — this doesn't affect how it's read back.
+4. Both functions are \`async\` and use \`fs/promises\` rather than the callback-based \`fs\` API, so calling code can just \`await\` them like any other asynchronous operation.
+5. Because every read re-parses the whole file and every write rewrites the whole thing, this pattern only scales to small, infrequently-updated datasets — it's a stopgap, not a database replacement.`,
+    code: `import { readFile, writeFile } from "node:fs/promises";
+
+const FILE = "./data.json";
+
+async function read() {
+  try {
+    const raw = await readFile(FILE, "utf-8");
+    return JSON.parse(raw);
+  } catch (err) {
+    if (err.code === "ENOENT") return [];
+    throw err;
+  }
+}
+
+async function write(data) {
+  await writeFile(FILE, JSON.stringify(data, null, 2));
+}
+
+// Usage
+const items = await read();
+items.push({ id: Date.now(), text: "Buy milk" });
+await write(items);`,
+    preview: {
+      type: "text",
+      output: `$ cat data.json
+cat: data.json: No such file or directory
+
+$ node add-item.mjs "Buy milk"
+# read() catches ENOENT, starts from []
+# write() creates data.json
+
+$ cat data.json
+[
+  {
+    "id": 1717000000000,
+    "text": "Buy milk"
+  }
+]`,
+      note: "This reads and writes a real file on disk, so the preview shows an example terminal session rather than executing it in the browser.",
+    },
+  },
+  {
+    id: "tailwind-responsive-grid",
+    title: "Responsive Grid",
+    language: "tailwind",
+    tags: ["layout", "grid", "responsive"],
+    difficulty: "Beginner",
+    description: "Build a grid that adds columns at each breakpoint using Tailwind's responsive grid-cols utilities — no custom CSS at all.",
+    explanation: `Tailwind's responsive prefixes (\`sm:\`, \`md:\`, \`lg:\`, …) apply a utility only once the viewport is at least that breakpoint's width, letting you describe an entire responsive layout directly in your markup.
+
+**How it works**
+
+1. \`grid grid-cols-1\` sets the base case — a single column — which applies at all screen sizes unless a breakpoint prefix overrides it.
+2. \`sm:grid-cols-2\` overrides that to 2 columns once the viewport is ≥640px, and \`lg:grid-cols-4\` bumps it to 4 columns at ≥1024px — each breakpoint prefix only kicks in at its own width and above, since Tailwind's breakpoints are mobile-first (\`min-width\` based).
+3. \`gap-4\` adds consistent spacing between grid items in both directions — equivalent to \`gap: 1rem\`.
+4. Because every utility maps to a single, well-known CSS rule, there's no custom stylesheet to maintain — the entire responsive behavior is visible right there in the class list.
+
+This is the Tailwind-idiomatic replacement for hand-written \`@media\` queries: the breakpoints live next to the markup they affect instead of in a separate CSS file.`,
+    code: `<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+  <div class="rounded-xl bg-indigo-500 p-6 text-white">1</div>
+  <div class="rounded-xl bg-rose-500 p-6 text-white">2</div>
+  <div class="rounded-xl bg-teal-500 p-6 text-white">3</div>
+  <div class="rounded-xl bg-amber-500 p-6 text-white">4</div>
+</div>`,
     preview: {
       type: "html",
-      height: 240,
-      markup: `<div class="center-container" style="background:#efeaff;">
-  <div class="card" style="background:#6c5ce7;color:#fff;border-radius:16px;text-align:center;font-family:-apple-system,Inter,sans-serif;font-weight:600;box-shadow:0 12px 32px rgba(108,92,231,0.35);">
+      height: 220,
+      resizable: true,
+      markup: `<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 p-4">
+  <div class="rounded-xl bg-indigo-500 p-6 text-center font-semibold text-white">1</div>
+  <div class="rounded-xl bg-rose-500 p-6 text-center font-semibold text-white">2</div>
+  <div class="rounded-xl bg-teal-500 p-6 text-center font-semibold text-white">3</div>
+  <div class="rounded-xl bg-amber-500 p-6 text-center font-semibold text-white">4</div>
+</div>`,
+    },
+  },
+  {
+    id: "tailwind-flex-center",
+    title: "Perfect Centering",
+    language: "tailwind",
+    tags: ["layout", "flexbox"],
+    difficulty: "Beginner",
+    description: "Center anything, both ways, using Tailwind's flex utilities instead of hand-written CSS.",
+    explanation: `This is the Tailwind translation of the classic \`display:flex; justify-content:center; align-items:center;\` centering trick — same mechanism, expressed as utility classes instead of custom CSS.
+
+**How it works**
+
+1. \`flex\` applies \`display: flex\` to the container, turning on flexbox layout for its direct children.
+2. \`justify-center\` centers children along the main axis (horizontal, by default) — Tailwind's utility for \`justify-content: center\`.
+3. \`items-center\` centers children along the cross axis (vertical, by default) — Tailwind's utility for \`align-items: center\`.
+4. \`h-64\` gives the container something to center *within*, exactly like \`min-height\` in the plain-CSS version — without a height, there's no vertical space to distribute.
+
+Because these are just utility classes, there's zero separate stylesheet to write or maintain — the layout logic lives entirely in the markup.`,
+    code: `<div class="flex h-64 items-center justify-center rounded-xl bg-indigo-50">
+  <div class="rounded-xl bg-indigo-600 px-8 py-6 font-semibold text-white shadow-lg">
+    🎯 Centered, no matter what
+  </div>
+</div>`,
+    preview: {
+      type: "html",
+      height: 220,
+      markup: `<div class="flex h-56 items-center justify-center rounded-xl bg-indigo-50">
+  <div class="rounded-xl bg-indigo-600 px-8 py-6 text-center font-semibold text-white shadow-lg">
     🎯 Centered, no matter what
   </div>
 </div>`,
     },
   },
   {
-    id: "promise-all-settled",
-    title: "Parallel Requests with allSettled",
-    language: "javascript",
-    tags: ["async", "promises", "networking"],
+    id: "tailwind-dark-mode-toggle",
+    title: "Dark Mode Toggle",
+    language: "tailwind",
+    tags: ["dark-mode", "theming", "interactive"],
     difficulty: "Intermediate",
-    description: "Fire several async requests in parallel and collect every result — successes and failures alike.",
-    explanation: `\`Promise.allSettled\` runs multiple promises concurrently and waits for *all* of them to finish, regardless of whether any individual one rejects.
+    description: "Flip an entire section between light and dark using Tailwind's class-based dark mode strategy and one small script.",
+    explanation: `Tailwind ships every utility with an optional \`dark:\` variant. Setting \`darkMode: "class"\` switches it to a manual strategy: dark styles only apply when a \`dark\` class is present on an ancestor, usually \`<html>\`, which you control with a few lines of JS.
 
 **How it works**
 
-1. \`urls.map(fetchJSON)\` immediately kicks off every fetch in parallel — none of them wait for each other, unlike a \`for\` loop with \`await\` inside it.
-2. \`Promise.allSettled\` takes that array of in-flight promises and returns a single promise that resolves once *every* one of them has either resolved or rejected.
-3. Each entry in the result array has a \`status\` field: \`"fulfilled"\` (with a \`value\`) or \`"rejected"\` (with a \`reason\`) — so one failed request can't blow up the whole batch, unlike \`Promise.all\`, which rejects immediately on the first failure.
-4. The final \`filter\`/\`map\` step pulls out just the successful values, silently discarding failures (or you could log \`reason\` for the rejected ones).
+1. Every element that should change appearance gets both its light-mode utility (e.g. \`bg-white\`) and its dark-mode counterpart (e.g. \`dark:bg-slate-900\`) — Tailwind compiles the \`dark:\` variant into a rule scoped under \`.dark\`.
+2. With \`darkMode: "class"\` configured, none of those \`dark:\` rules apply until something adds the literal class \`dark\` to an ancestor element — normally \`document.documentElement\`.
+3. A toggle button's click handler does exactly that: \`classList.toggle("dark")\` flips the class on and off, and because CSS re-evaluates instantly, every \`dark:\`-prefixed utility on the page updates in one paint — no manual style changes needed anywhere else.
+4. This is the same fundamental idea as swapping CSS custom properties for theming — one small state change cascades everywhere, just expressed through Tailwind's variant system instead of \`var(--token)\`.
 
-This pattern is the go-to when you want "best effort" parallel fetching — e.g. loading several independent widgets on a dashboard where one failing shouldn't take down the rest.`,
-    code: `async function fetchJSON(url) {
-  const res = await fetch(url);
-  if (!res.ok) throw new Error(\`Request failed: \${res.status}\`);
-  return res.json();
-}
+Persisting the choice so it survives a reload just means saving \`"dark"\` or \`"light"\` to \`localStorage\` and re-applying the class on page load — the toggle logic itself stays the same.`,
+    code: `<html class="">
+  <body class="bg-white text-slate-900 dark:bg-slate-900 dark:text-white">
+    <button id="theme-toggle" class="rounded-full bg-indigo-600 px-4 py-2 text-white dark:bg-indigo-400">
+      Toggle theme
+    </button>
+  </body>
+</html>
 
-async function fetchAll(urls) {
-  const results = await Promise.allSettled(urls.map(fetchJSON));
-
-  return results
-    .filter((r) => r.status === "fulfilled")
-    .map((r) => r.value);
-}
-
-// Usage
-const data = await fetchAll([
-  "/api/users",
-  "/api/posts",
-  "/api/comments",
-]);`,
-    preview: {
-      type: "js",
-      run: `function fakeRequest(ms, value, shouldFail) {
-  return new Promise((resolve, reject) => {
-    setTimeout(() => (shouldFail ? reject(new Error(value)) : resolve(value)), ms);
+<script>
+  document.getElementById("theme-toggle").addEventListener("click", () => {
+    document.documentElement.classList.toggle("dark");
   });
-}
-
-async function fetchAll(promises) {
-  const results = await Promise.allSettled(promises);
-  return results
-    .filter((r) => r.status === "fulfilled")
-    .map((r) => r.value);
-}
-
-console.log("Firing 3 requests in parallel (one will fail)...");
-const requests = [
-  fakeRequest(300, "users: [Ada, Alan]", false),
-  fakeRequest(500, "posts: request timed out", true),
-  fakeRequest(200, "comments: 12 items", false),
-];
-
-fetchAll(requests).then((data) => {
-  console.log("All settled. Successful results kept:");
-  data.forEach((d) => console.log("  - " + d));
-});`,
-    },
-  },
-  {
-    id: "python-binary-search",
-    title: "Binary Search",
-    language: "python",
-    tags: ["algorithms", "searching"],
-    difficulty: "Beginner",
-    description: "Find a value in a sorted list in O(log n) time by repeatedly halving the search space.",
-    explanation: `Binary search only works on **sorted** data, but in exchange it's dramatically faster than scanning element by element.
-
-**How it works**
-
-1. Two pointers, \`low\` and \`high\`, mark the current search window — initially the whole list.
-2. On each loop, \`mid\` is the midpoint of that window.
-3. If \`arr[mid]\` is exactly the target, we're done.
-4. If the target is *larger*, the entire left half (including \`mid\`) can never contain it, so \`low\` jumps past it.
-5. If the target is *smaller*, the right half is discarded the same way by pulling \`high\` back.
-6. Every iteration halves the remaining window, so a list of a million items needs at most ~20 comparisons instead of up to a million.
-
-If \`low\` ever crosses \`high\`, the window is empty and the target isn't present, so the loop returns -1.`,
-    code: `def binary_search(arr, target):
-    low, high = 0, len(arr) - 1
-
-    while low <= high:
-        mid = (low + high) // 2
-
-        if arr[mid] == target:
-            return mid
-        elif arr[mid] < target:
-            low = mid + 1
-        else:
-            high = mid - 1
-
-    return -1  # not found
-
-# Usage
-numbers = [1, 3, 5, 7, 9, 11, 13]
-print(binary_search(numbers, 9))  # 4`,
-    preview: {
-      type: "text",
-      output: `>>> numbers = [1, 3, 5, 7, 9, 11, 13]
->>> binary_search(numbers, 9)
-4`,
-      note: "Python runs outside the browser, so this shows what executing the snippet above would actually print.",
-    },
-  },
-  {
-    id: "css-grid-auto-fill",
-    title: "Self-Wrapping Card Grid",
-    language: "css",
-    tags: ["layout", "grid", "responsive"],
-    difficulty: "Intermediate",
-    description: "A responsive grid that adds or removes columns automatically as the viewport resizes — no media queries needed.",
-    explanation: `This single \`grid-template-columns\` declaration replaces what used to take several breakpoint-specific media queries.
-
-**How it works**
-
-1. \`repeat(auto-fill, ...)\` tells the grid to keep repeating the column pattern as many times as fit in the container's width.
-2. \`minmax(240px, 1fr)\` gives every column a floor of 240px — columns never shrink below that — and a ceiling that lets them stretch to fill remaining space equally (\`1fr\`).
-3. As the container narrows, columns that no longer fit at 240px collapse away, and the remaining columns redistribute the freed space between them. As it widens, more 240px-minimum columns fit, so a new column appears.
-4. \`gap\` adds consistent spacing between both rows and columns without needing margin hacks that break at the grid's edges.
-
-\`auto-fill\` (used here) keeps empty tracks if there's leftover space; the alternative \`auto-fit\` collapses those empty tracks so existing cards stretch to fill the row instead.`,
-    code: `.card-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
-  gap: 1.5rem;
-}
-
-/* Each card just needs to exist — no width math required */
-.card-grid > .card {
-  min-height: 180px;
-}`,
+</script>`,
     preview: {
       type: "html",
-      height: 260,
-      resizable: true,
-      markup: `<div class="card-grid" style="padding:1rem;">
-  <div class="card" style="background:#6c5ce7;"></div>
-  <div class="card" style="background:#ff6b6b;"></div>
-  <div class="card" style="background:#00c2a8;"></div>
-  <div class="card" style="background:#ffab2e;"></div>
-  <div class="card" style="background:#ff5fa2;"></div>
-  <div class="card" style="background:#5341d6;"></div>
+      height: 200,
+      tailwindConfig: "{ darkMode: 'class' }",
+      markup: `<div class="flex flex-col items-center gap-4 rounded-xl bg-white p-8 text-slate-900 transition-colors dark:bg-slate-900 dark:text-white">
+  <p>This box reads Tailwind's <code class="rounded bg-slate-100 px-1 dark:bg-slate-700">dark:</code> variant.</p>
+  <button id="theme-toggle" class="rounded-full bg-indigo-600 px-4 py-2 font-semibold text-white transition hover:bg-indigo-700 dark:bg-indigo-400 dark:text-slate-900">
+    Toggle theme
+  </button>
+</div>
+<script>
+  document.getElementById("theme-toggle").addEventListener("click", () => {
+    document.documentElement.classList.toggle("dark");
+  });
+<\/script>`,
+    },
+  },
+  {
+    id: "tailwind-button-states",
+    title: "Interactive Button States",
+    language: "tailwind",
+    tags: ["interactivity", "transitions", "buttons"],
+    difficulty: "Beginner",
+    description: "Style hover, focus, and active states — plus a smooth transition — entirely with Tailwind utility classes.",
+    explanation: `Interactive states that would normally need separate \`:hover\`, \`:focus\`, and \`:active\` CSS rules are each just a variant prefix on the exact same class in Tailwind.
+
+**How it works**
+
+1. \`bg-indigo-600\` sets the resting background; \`hover:bg-indigo-700\` swaps it for a slightly darker shade the moment the pointer is over the button — Tailwind compiles this to a normal \`:hover\` rule scoped to that utility.
+2. \`focus:ring-4 focus:ring-indigo-300\` adds a visible focus ring, critical for keyboard users tabbing through the page, only while the element has keyboard or programmatic focus.
+3. \`active:scale-95\` shrinks the button slightly the instant it's pressed, giving tactile feedback that the click registered — it's cleared automatically the moment the mouse button or tap releases.
+4. \`transition\` (short for \`transition-property: all\` plus sensible default duration and timing) makes all of the above animate smoothly between states instead of snapping instantly, without writing a single \`@keyframes\` or \`transition:\` rule by hand.
+
+Stacking all four together on one element is idiomatic Tailwind: every interactive state lives right next to the base style, instead of being split across separate CSS selectors.`,
+    code: `<button
+  class="rounded-lg bg-indigo-600 px-5 py-2.5 font-semibold text-white
+         transition hover:bg-indigo-700
+         focus:outline-none focus:ring-4 focus:ring-indigo-300
+         active:scale-95"
+>
+  Click me
+</button>`,
+    preview: {
+      type: "html",
+      height: 160,
+      markup: `<div class="flex items-center justify-center p-10">
+  <button class="rounded-lg bg-indigo-600 px-5 py-2.5 font-semibold text-white transition hover:bg-indigo-700 focus:outline-none focus:ring-4 focus:ring-indigo-300 active:scale-95">
+    Click me
+  </button>
 </div>`,
     },
   },
-  {
-    id: "js-deep-clone",
-    title: "Deep Clone with structuredClone",
-    language: "javascript",
-    tags: ["objects", "browser-apis"],
-    difficulty: "Beginner",
-    description: "Create a true deep copy of nested objects and arrays using a built-in browser API — no libraries needed.",
-    explanation: `Before \`structuredClone\` existed, deep-cloning an object usually meant \`JSON.parse(JSON.stringify(obj))\` — a hack that silently breaks on \`Date\`, \`Map\`, \`Set\`, \`undefined\` values, and circular references.
-
-**How it works**
-
-1. \`structuredClone\` is a global function implementing the same "structured clone algorithm" browsers already use internally for \`postMessage\` and IndexedDB.
-2. It walks the entire object graph recursively, copying nested objects and arrays into brand new memory rather than copying references.
-3. Unlike the JSON hack, it correctly preserves special types like \`Date\`, \`Map\`, \`Set\`, \`RegExp\`, and typed arrays, and it can even handle circular references without infinite-looping.
-4. Because the clone is fully independent, mutating the copy (e.g. \`clone.user.name = "Bo"\`) never touches the original object.
-
-The main limitation: it can't clone functions or DOM nodes — attempting to will throw a \`DataCloneError\`.`,
-    code: `const original = {
-  name: "Ada",
-  createdAt: new Date(),
-  tags: new Set(["engineer", "pioneer"]),
-  address: { city: "London" },
-};
-
-const clone = structuredClone(original);
-
-clone.address.city = "Paris";
-
-console.log(original.address.city); // "London" — untouched
-console.log(clone.address.city);    // "Paris"`,
-    preview: {
-      type: "js",
-      run: `const original = {
-  name: "Ada",
-  createdAt: new Date(),
-  tags: new Set(["engineer", "pioneer"]),
-  address: { city: "London" },
-};
-
-const clone = structuredClone(original);
-clone.address.city = "Paris";
-
-console.log("original.address.city:", original.address.city);
-console.log("clone.address.city:   ", clone.address.city);
-console.log("clone.tags instanceof Set:", clone.tags instanceof Set);`,
-    },
-  },
-  {
-    id: "react-like-usefetch",
-    title: "Tiny useFetch Hook",
-    language: "javascript",
-    tags: ["react", "hooks", "async"],
-    difficulty: "Advanced",
-    description: "A minimal custom React hook that fetches data, tracks loading/error state, and cleans up after itself.",
-    explanation: `Custom hooks let you package a stateful pattern — here, "fetch some data and track its lifecycle" — into a single reusable function.
-
-**How it works**
-
-1. Three pieces of state track the request's lifecycle: \`data\` (the result), \`loading\` (in flight or not), and \`error\` (anything that went wrong).
-2. The \`useEffect\` re-runs whenever \`url\` changes, so switching URLs automatically triggers a fresh fetch.
-3. An \`AbortController\` is created per effect run. Its \`signal\` is passed into \`fetch\`, and the cleanup function calls \`controller.abort()\` when the component unmounts or \`url\` changes again — this prevents a slow, stale request from overwriting state after a newer one has already started (a common source of race-condition bugs).
-4. The \`try/catch/finally\` block updates \`data\` on success, \`error\` on failure (ignoring intentional \`AbortError\`s from cleanup), and always turns \`loading\` off in \`finally\`.
-
-The hook returns the three pieces of state as an object, so any component can destructure exactly what it needs: \`const { data, loading, error } = useFetch(url)\`.`,
-    code: `function useFetch(url) {
-  const [data, setData] = React.useState(null);
-  const [loading, setLoading] = React.useState(true);
-  const [error, setError] = React.useState(null);
-
-  React.useEffect(() => {
-    const controller = new AbortController();
-
-    async function run() {
-      setLoading(true);
-      setError(null);
-      try {
-        const res = await fetch(url, { signal: controller.signal });
-        if (!res.ok) throw new Error(\`HTTP \${res.status}\`);
-        setData(await res.json());
-      } catch (err) {
-        if (err.name !== "AbortError") setError(err);
-      } finally {
-        setLoading(false);
-      }
-    }
-
-    run();
-    return () => controller.abort();
-  }, [url]);
-
-  return { data, loading, error };
-}`,
-    preview: {
-      type: "text",
-      output: `// state over time for useFetch("/api/user/42")
-
-t=0ms    { data: null,        loading: true,  error: null }
-t=180ms  { data: { id: 42 }, loading: false, error: null }
-
-// if the request had failed instead:
-t=180ms  { data: null,        loading: false, error: Error("HTTP 500") }`,
-      note: "This hook depends on React and a live endpoint, so this preview shows the state shape over time rather than executing it in the browser.",
-    },
-  },
-  {
-    id: "python-list-comprehension",
-    title: "List Comprehensions",
-    language: "python",
-    tags: ["fundamentals", "syntax"],
-    difficulty: "Beginner",
-    description: "Build new lists in a single readable expression instead of a manual for-loop with .append().",
-    explanation: `A list comprehension is a compact way of expressing "for every item in this iterable, optionally filter it, then transform it into a new list."
-
-**How it works**
-
-1. The syntax \`[expression for item in iterable if condition]\` reads almost like the English sentence describing it.
-2. Python evaluates it like an implicit loop: for each \`item\` in \`iterable\`, it checks the optional \`if condition\` — items that fail it are skipped entirely.
-3. For items that pass, \`expression\` (often just a transformed version of \`item\`) is evaluated and appended to the new list being built.
-4. The whole thing produces a brand-new list — the original iterable is never mutated.
-
-Compared to a manual loop with \`.append()\`, comprehensions are usually faster (fewer bytecode operations) and, once you're used to the syntax, easier to read at a glance.`,
-    code: `numbers = range(1, 21)
-
-# Squares of even numbers only
-even_squares = [n ** 2 for n in numbers if n % 2 == 0]
-print(even_squares)
-# [4, 16, 36, 64, 100, 144, 196, 256, 324, 400]
-
-# Equivalent manual loop, for comparison
-even_squares_manual = []
-for n in numbers:
-    if n % 2 == 0:
-        even_squares_manual.append(n ** 2)`,
-    preview: {
-      type: "text",
-      output: `>>> even_squares
-[4, 16, 36, 64, 100, 144, 196, 256, 324, 400]`,
-      note: "Python runs outside the browser, so this shows what executing the snippet above would actually print.",
-    },
-  },
-  {
-    id: "css-custom-properties-theme",
-    title: "Theming with CSS Variables",
-    language: "css",
-    tags: ["theming", "custom-properties"],
-    difficulty: "Intermediate",
-    description: "Swap an entire color scheme at runtime by toggling one attribute — the technique behind most dark-mode switches.",
-    explanation: `CSS custom properties (variables) can be redefined at any scope, and every element using \`var(--token)\` picks up the new value automatically — no re-render or JS style manipulation needed on each element.
-
-**How it works**
-
-1. \`:root\` defines the default ("light") values for a set of semantic tokens like \`--bg\` and \`--text\`, rather than hard-coding colors all over the stylesheet.
-2. \`[data-theme="dark"]\` re-declares those *same* variable names with different values, scoped to any element carrying that attribute (typically \`<html data-theme="dark">\`).
-3. Because CSS variables cascade and inherit like any other property, every descendant element that references \`var(--bg)\` or \`var(--text)\` re-resolves to the dark values automatically — the component styles never mention "dark mode" at all.
-4. A tiny JS snippet just needs to flip the attribute (and optionally persist the choice in \`localStorage\`) — the actual repainting is handled entirely by the browser's CSS engine.
-
-This keeps theme logic in one place instead of duplicating every component's styles for light and dark.`,
-    code: `:root {
-  --bg: #ffffff;
-  --text: #1a1a1a;
-  --accent: #6c5ce7;
-}
-
-[data-theme="dark"] {
-  --bg: #14121f;
-  --text: #f4f2ff;
-  --accent: #a29bfe;
-}
-
-body {
-  background: var(--bg);
-  color: var(--text);
-  transition: background 0.3s ease, color 0.3s ease;
-}
-
-.button {
-  background: var(--accent);
-}`,
-    preview: {
-      type: "html",
-      height: 180,
-      markup: `<div style="padding:2rem;text-align:center;font-family:-apple-system,Inter,sans-serif;">
-  <p style="margin:0 0 1rem;">This box reads the CSS variables from the snippet above.</p>
-  <button class="button" id="demoToggle" style="border:0;color:#fff;padding:0.6rem 1.2rem;border-radius:999px;font-weight:600;cursor:pointer;">Toggle theme</button>
-</div>
-<script>
-  document.getElementById("demoToggle").addEventListener("click", () => {
-    const root = document.documentElement;
-    const isDark = root.getAttribute("data-theme") === "dark";
-    root.setAttribute("data-theme", isDark ? "light" : "dark");
-  });
-</script>`,
-    },
-  },
-  {
-    id: "js-memoize",
-    title: "Memoization Cache",
-    language: "javascript",
-    tags: ["performance", "closures", "caching"],
-    difficulty: "Intermediate",
-    description: "Wrap an expensive pure function so repeated calls with the same arguments return instantly from a cache.",
-    explanation: `Memoization trades memory for speed: it remembers past results so identical work is never repeated.
-
-**How it works**
-
-1. \`memoize\` returns a wrapper function that closes over a \`Map\` used as its cache — this \`Map\` persists across every call to the wrapped function, since it lives in the closure rather than being recreated each time.
-2. On each call, the arguments are serialized into a single string \`key\` via \`JSON.stringify\`. This makes \`(2, 3)\` and \`(3, 2)\` produce different keys, which is what you want for a function like addition where argument order can matter for the general case.
-3. If that \`key\` already exists in the cache, the stored value is returned immediately — the original function never runs again for that input.
-4. Otherwise, the real function runs once, and its result is stored under \`key\` before being returned, so the *next* call with the same arguments hits the cache.
-
-This only makes sense for **pure** functions (same input always produces the same output) — memoizing something with side effects or external dependencies would return stale results.`,
-    code: `function memoize(fn) {
-  const cache = new Map();
-
-  return function (...args) {
-    const key = JSON.stringify(args);
-
-    if (cache.has(key)) {
-      return cache.get(key);
-    }
-
-    const result = fn(...args);
-    cache.set(key, result);
-    return result;
-  };
-}
-
-// Usage — an expensive recursive fibonacci, made fast
-const slowFib = (n) => (n <= 1 ? n : slowFib(n - 1) + slowFib(n - 2));
-const fastFib = memoize(slowFib);
-
-console.log(fastFib(30)); // computed once, cached forever`,
-    preview: {
-      type: "js",
-      run: `function memoize(fn) {
-  const cache = new Map();
-  return function (...args) {
-    const key = JSON.stringify(args);
-    if (cache.has(key)) return cache.get(key);
-    const result = fn(...args);
-    cache.set(key, result);
-    return result;
-  };
-}
-
-const slowSquare = (n) => {
-  let total = 0;
-  for (let i = 0; i < 3e6; i++) total += i; // simulate expensive work
-  return n * n;
-};
-const fastSquare = memoize(slowSquare);
-
-let start = performance.now();
-console.log("First call with 7 (runs the real function):");
-console.log("  result =", fastSquare(7), "  took", (performance.now() - start).toFixed(2) + "ms");
-
-start = performance.now();
-console.log("Second call with 7 (hits the cache):");
-console.log("  result =", fastSquare(7), "  took", (performance.now() - start).toFixed(2) + "ms");`,
-    },
-  },
-  {
-    id: "python-context-manager",
-    title: "Custom Context Manager",
-    language: "python",
-    tags: ["fundamentals", "resource-management"],
-    difficulty: "Advanced",
-    description: "Guarantee setup and teardown code always runs — even on error — using Python's 'with' statement protocol.",
-    explanation: `A context manager guarantees that cleanup code runs no matter how the \`with\` block exits — normally, via \`return\`, or via an uncaught exception.
-
-**How it works**
-
-1. Any class implementing \`__enter__\` and \`__exit__\` can be used after \`with\`. Python calls \`__enter__\` when entering the block, and whatever it returns gets bound to the \`as\` variable.
-2. Here, \`__enter__\` records the start time and returns \`self\`, so the block can reference the timer if needed.
-3. When the block finishes — however it finishes — Python calls \`__exit__\` with three arguments describing any exception that occurred (\`exc_type\`, \`exc_value\`, \`traceback\`), or \`(None, None, None)\` if it exited cleanly.
-4. \`__exit__\` runs the cleanup (printing the elapsed time here) regardless of which case happened. Returning \`False\` from \`__exit__\` tells Python "don't swallow the exception" — it keeps propagating normally after cleanup runs.
-
-This pattern is how \`open(...)\` guarantees a file gets closed, and how \`threading.Lock()\` guarantees a lock gets released, even if the code inside the block raises.`,
-    code: `import time
-
-class Timer:
-    def __enter__(self):
-        self.start = time.perf_counter()
-        return self
-
-    def __exit__(self, exc_type, exc_value, traceback):
-        elapsed = time.perf_counter() - self.start
-        print(f"Elapsed: {elapsed:.4f}s")
-        return False  # don't suppress exceptions
-
-# Usage
-with Timer():
-    total = sum(n ** 2 for n in range(1_000_000))`,
-    preview: {
-      type: "text",
-      output: `>>> with Timer():
-...     total = sum(n ** 2 for n in range(1_000_000))
-...
-Elapsed: 0.0842s`,
-      note: "Python runs outside the browser, so this shows what executing the snippet above would actually print.",
-    },
-  }
 ];

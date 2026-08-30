@@ -96,7 +96,7 @@ function copyIcon() {
 }
 
 function langAlias(language) {
-  return { javascript: "javascript", python: "python", css: "css" }[language] || "plaintext";
+  return { javascript: "javascript", node: "javascript", tailwind: "xml" }[language] || "plaintext";
 }
 
 function escapeHTML(str) {
@@ -139,7 +139,6 @@ function renderPreviewSection(snippet) {
   const preview = snippet.preview;
   if (!preview) return "";
 
-  const badges = { js: "live", html: "live", text: "simulated" };
   const badgeLabel = { js: "Live", html: "Live", text: "Example output" };
   const badgeClass = preview.type === "text" ? "static" : "live";
 
@@ -191,7 +190,7 @@ function renderPreviewSection(snippet) {
 
 function previewToolbarLabel(type) {
   if (type === "js") return "Executed in a sandboxed frame — nothing here can touch this page.";
-  if (type === "html") return "Rendered with the exact CSS from the snippet above.";
+  if (type === "html") return "Rendered with Tailwind and the exact markup from the snippet above.";
   return "Not executed in-browser — shown for reference.";
 }
 
@@ -220,14 +219,15 @@ ${runCode}
 </body></html>`;
 }
 
-function buildHtmlSrcdoc(cssCode, markup) {
+function buildHtmlSrcdoc(markup, tailwindConfig) {
   return `<!doctype html>
 <html><head><meta charset="utf-8">
+<script src="https://cdn.tailwindcss.com"><\/script>
+${tailwindConfig ? `<script>tailwind.config = ${tailwindConfig};<\/script>` : ""}
 <style>
   * { box-sizing: border-box; }
   html, body { margin: 0; }
-  body { font-family: -apple-system, "Inter", sans-serif; color: #1c1730; overflow: hidden; }
-  ${cssCode}
+  body { font-family: -apple-system, "Inter", sans-serif; overflow: hidden; }
 </style>
 </head><body>
 ${markup}
@@ -242,6 +242,7 @@ ${markup}
     window.addEventListener("resize", __postHeight);
   }
   setTimeout(__postHeight, 50);
+  setTimeout(__postHeight, 300);
 <\/script>
 </body></html>`;
 }
@@ -291,7 +292,7 @@ function initPreview(snippet) {
     const frameWrap = document.getElementById("previewFrameWrap");
     const widthSlider = document.getElementById("previewWidth");
 
-    iframe.srcdoc = buildHtmlSrcdoc(snippet.code, preview.markup);
+    iframe.srcdoc = buildHtmlSrcdoc(preview.markup, preview.tailwindConfig);
 
     window.addEventListener("message", (event) => {
       if (event.source !== iframe.contentWindow || !event.data || !event.data.__clPreviewHeight) return;

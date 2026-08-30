@@ -640,4 +640,280 @@ Stacking all four together on one element is idiomatic Tailwind: every interacti
 </div>`,
     },
   },
+  {
+    id: "curve-page-transition",
+    title: "Curve Page Transition",
+    language: "javascript",
+    tags: ["animation", "svg", "transitions", "requestanimationframe"],
+    difficulty: "Advanced",
+    description: "A colored SVG panel with a curved leading edge sweeps over the page, swaps the content while it's fully hidden, then sweeps away again — a framework-free take on the 'wipe' route transitions popular on portfolio sites.",
+    explanation: `A single SVG \`<path>\` is redrawn on every animation frame to sweep a colored panel across the screen, covering the page just long enough to swap its content, then sweeping away again to reveal it.
+
+**How it works**
+
+1. \`buildPanelPath\` computes a fresh \`d\` string every frame — a rectangle down to \`height - bulge\`, capped with one quadratic curve (\`Q\`) that bulges back up to the same height on the far side. That single curve is the panel's "wave" edge; when \`bulge\` is \`0\` it collapses into a flat, straight line.
+2. \`animate("in")\` and \`animate("out")\` both drive the same \`requestAnimationFrame\` loop, just moving \`travel\` — how far down the panel currently reaches — in opposite directions: \`0 → height\` to cover the screen, \`height → 0\` to reveal it again.
+3. \`bulge\` is driven by \`Math.sin(eased * Math.PI)\`, which starts at \`0\`, peaks exactly at the animation's midpoint, and returns to \`0\` by the end — so the curve appears while the panel is mid-motion and disappears the instant it settles, on both the way in and the way out.
+4. \`easeInOutCubic\` shapes the raw linear progress (\`0\` to \`1\`) into a slow-fast-slow curve before it's used for anything, which is what keeps the sweep from feeling mechanical.
+5. \`curveTransition(...).run(swapContent)\` chains the two phases around a real DOM mutation: cover completely, run \`swapContent()\` while nothing is visible, then reveal — the viewer never actually sees the underlying content change.
+
+Because it's just path math driven by \`requestAnimationFrame\`, this works in any vanilla project with zero dependencies, and doesn't rely on any framework's mount/unmount lifecycle to know when to animate.`,
+    code: `function easeInOutCubic(t) {
+  return t < 0.5 ? 4 * t ** 3 : 1 - (-2 * t + 2) ** 3 / 2;
+}
+
+function buildPanelPath(width, height, bulge) {
+  // The bottom edge bulges downward by \`bulge\` px at the midpoint,
+  // and flattens into a straight line as \`bulge\` approaches 0.
+  return \`M0,0 L\${width},0 L\${width},\${height - bulge} Q\${width / 2},\${height + bulge} 0,\${height - bulge} Z\`;
+}
+
+function curveTransition({ container, color = "#4f46e5", duration = 650 } = {}) {
+  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+  path.setAttribute("fill", color);
+  svg.appendChild(path);
+  container.appendChild(svg);
+
+  function animate(direction) {
+    // "in"  -> panel grows to cover the container (0 -> full height)
+    // "out" -> panel shrinks away, revealing new content (full -> 0)
+    return new Promise((resolve) => {
+      const start = performance.now();
+      const { width, height } = container.getBoundingClientRect();
+
+      function frame(now) {
+        const t = Math.min((now - start) / duration, 1);
+        const eased = easeInOutCubic(t);
+        const travel = direction === "in" ? eased * height : (1 - eased) * height;
+        const bulge = Math.sin(eased * Math.PI) * (height * 0.08);
+
+        path.setAttribute("d", buildPanelPath(width, travel, bulge));
+        t < 1 ? requestAnimationFrame(frame) : resolve();
+      }
+
+      requestAnimationFrame(frame);
+    });
+  }
+
+  return {
+    async run(swapContent) {
+      await animate("in");  // cover the container
+      swapContent();         // swap the DOM while it's fully hidden
+      await animate("out"); // reveal the new content
+      svg.remove();
+    },
+  };
+}
+
+// Usage
+const transition = curveTransition({ container: document.getElementById("app") });
+
+link.addEventListener("click", (e) => {
+  e.preventDefault();
+  transition.run(() => {
+    document.getElementById("app").innerHTML = renderNextPage();
+  });
+});`,
+    preview: {
+      type: "html",
+      height: 340,
+      markup: `<div class="relative mx-auto h-64 w-full max-w-sm overflow-hidden rounded-xl bg-slate-100" id="stage">
+  <div class="absolute inset-0 flex items-center justify-center bg-indigo-50 text-indigo-900" id="pageA">
+    <p class="text-lg font-semibold">Page A</p>
+  </div>
+  <div class="absolute inset-0 hidden items-center justify-center bg-amber-50 text-amber-900" id="pageB">
+    <p class="text-lg font-semibold">Page B</p>
+  </div>
+</div>
+<div class="mt-4 flex justify-center">
+  <button id="go" class="rounded-full bg-indigo-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-indigo-700">Go to Page B</button>
+</div>
+<script>
+  function easeInOutCubic(t) { return t < 0.5 ? 4 * t ** 3 : 1 - (-2 * t + 2) ** 3 / 2; }
+
+  function buildPanelPath(width, height, bulge) {
+    return "M0,0 L" + width + ",0 L" + width + "," + (height - bulge) +
+      " Q" + (width / 2) + "," + (height + bulge) + " 0," + (height - bulge) + " Z";
+  }
+
+  const stage = document.getElementById("stage");
+  const svgNS = "http://www.w3.org/2000/svg";
+  const svg = document.createElementNS(svgNS, "svg");
+  svg.setAttribute("class", "pointer-events-none absolute inset-0 h-full w-full");
+  const path = document.createElementNS(svgNS, "path");
+  path.setAttribute("fill", "#4f46e5");
+  svg.appendChild(path);
+  stage.appendChild(svg);
+
+  function animate(direction) {
+    return new Promise((resolve) => {
+      const start = performance.now();
+      const duration = 550;
+      const rect = stage.getBoundingClientRect();
+
+      function frame(now) {
+        const t = Math.min((now - start) / duration, 1);
+        const eased = easeInOutCubic(t);
+        const travel = direction === "in" ? eased * rect.height : (1 - eased) * rect.height;
+        const bulge = Math.sin(eased * Math.PI) * (rect.height * 0.08);
+        path.setAttribute("d", buildPanelPath(rect.width, travel, bulge));
+        if (t < 1) requestAnimationFrame(frame); else resolve();
+      }
+
+      requestAnimationFrame(frame);
+    });
+  }
+
+  let showingB = false;
+  document.getElementById("go").addEventListener("click", async (e) => {
+    const btn = e.currentTarget;
+    btn.disabled = true;
+    await animate("in");
+    showingB = !showingB;
+    document.getElementById("pageA").classList.toggle("hidden", showingB);
+    document.getElementById("pageA").classList.toggle("flex", !showingB);
+    document.getElementById("pageB").classList.toggle("hidden", !showingB);
+    document.getElementById("pageB").classList.toggle("flex", showingB);
+    btn.textContent = showingB ? "Back to Page A" : "Go to Page B";
+    await animate("out");
+    btn.disabled = false;
+  });
+<\/script>`,
+    },
+  },
+  {
+    id: "inner-page-transition",
+    title: "Slide-Cover Page Transition",
+    language: "javascript",
+    tags: ["animation", "css-transitions", "transitions"],
+    difficulty: "Intermediate",
+    description: "Slide a panel up to cover the outgoing page while it shrinks back in perspective, swap the content underneath, then slide the panel away to reveal it — pure CSS transitions orchestrated by a few lines of JS.",
+    explanation: `Two CSS classes describe the two visual states this transition moves between, and a small JS function toggles them with the right timing — no animation library required.
+
+**How it works**
+
+1. \`ensureStyles\` injects one \`<style>\` tag with the CSS this transition needs, only once — the same trick a small vanilla-JS library would use to ship its own styles without a separate stylesheet.
+2. Adding \`is-leaving\` to the content triggers its own CSS transition: it scales down slightly and moves up a bit, reading as the page being pushed back in space. Adding \`is-covering\` to the panel slides it from fully below the viewport (\`translateY(100%)\`) up to its resting position, covering everything.
+3. Both transitions share the same \`duration\` and easing curve, so a plain \`setTimeout(fn, duration)\` is a reliable enough stand-in for "wait until both animations finish" without wiring up two separate \`transitionend\` listeners.
+4. The moment that timeout fires, the panel is fully covering the screen — that's exactly when \`swapContent()\` runs and \`is-leaving\` is removed, so the *next* page is sitting there, already back at its resting scale and position, just hidden behind the panel.
+5. Removing \`is-covering\` on the following frame — via \`requestAnimationFrame\`, so the browser gets a chance to paint the reset content first — starts the panel's exit transition, sliding it back down and revealing the new page underneath.
+
+This is a reusable template for any "cover, swap, reveal" transition: two CSS classes for the visual states, and one small function that toggles them with the right timing in between.`,
+    code: `const STYLE_ID = "inner-transition-styles";
+
+function ensureStyles() {
+  if (document.getElementById(STYLE_ID)) return;
+
+  const style = document.createElement("style");
+  style.id = STYLE_ID;
+  style.textContent = \`
+    .page-content {
+      transition: transform 0.6s cubic-bezier(0.76, 0, 0.24, 1), opacity 0.6s ease;
+    }
+    .page-content.is-leaving {
+      transform: translateY(-40px) scale(0.94);
+      opacity: 0.6;
+    }
+    .cover-panel {
+      position: absolute;
+      inset: 0;
+      transform: translateY(100%);
+      transition: transform 0.6s cubic-bezier(0.76, 0, 0.24, 1);
+    }
+    .cover-panel.is-covering {
+      transform: translateY(0);
+    }
+  \`;
+  document.head.appendChild(style);
+}
+
+function innerTransition({ panel, content, swapContent, duration = 600 }) {
+  ensureStyles();
+
+  return new Promise((resolve) => {
+    // 1. push the outgoing content back and slide the cover panel up
+    content.classList.add("is-leaving");
+    panel.classList.add("is-covering");
+
+    setTimeout(() => {
+      // 2. content is now fully hidden behind the panel — swap it instantly
+      swapContent();
+      content.classList.remove("is-leaving");
+
+      // 3. slide the panel back down, revealing the new content underneath
+      requestAnimationFrame(() => panel.classList.remove("is-covering"));
+      setTimeout(resolve, duration);
+    }, duration);
+  });
+}
+
+// Usage
+const panel = document.querySelector(".cover-panel");
+const content = document.querySelector(".page-content");
+
+link.addEventListener("click", (e) => {
+  e.preventDefault();
+  innerTransition({
+    panel,
+    content,
+    swapContent: () => {
+      content.innerHTML = renderNextPage();
+    },
+  });
+});`,
+    preview: {
+      type: "html",
+      height: 340,
+      markup: `<div class="relative mx-auto h-64 w-full max-w-sm overflow-hidden rounded-xl bg-slate-100">
+  <div class="page-content flex h-full w-full items-center justify-center bg-indigo-50 text-indigo-900" id="content">
+    <p class="text-lg font-semibold" id="label">Page A</p>
+  </div>
+  <div class="cover-panel bg-slate-900"></div>
+</div>
+<div class="mt-4 flex justify-center">
+  <button id="go" class="rounded-full bg-indigo-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-indigo-700">Go to Page B</button>
+</div>
+<style>
+  .page-content { transition: transform .6s cubic-bezier(.76,0,.24,1), opacity .6s ease; }
+  .page-content.is-leaving { transform: translateY(-24px) scale(.94); opacity: .6; }
+  .cover-panel { position: absolute; inset: 0; transform: translateY(100%); transition: transform .6s cubic-bezier(.76,0,.24,1); }
+  .cover-panel.is-covering { transform: translateY(0); }
+</style>
+<script>
+  let showingB = false;
+  const content = document.getElementById("content");
+  const label = document.getElementById("label");
+  const panel = document.querySelector(".cover-panel");
+  const btn = document.getElementById("go");
+
+  function innerTransition(swapContent, duration) {
+    return new Promise((resolve) => {
+      content.classList.add("is-leaving");
+      panel.classList.add("is-covering");
+      setTimeout(() => {
+        swapContent();
+        content.classList.remove("is-leaving");
+        requestAnimationFrame(() => panel.classList.remove("is-covering"));
+        setTimeout(resolve, duration);
+      }, duration);
+    });
+  }
+
+  btn.addEventListener("click", async () => {
+    btn.disabled = true;
+    await innerTransition(() => {
+      showingB = !showingB;
+      label.textContent = showingB ? "Page B" : "Page A";
+      content.classList.toggle("bg-indigo-50", !showingB);
+      content.classList.toggle("text-indigo-900", !showingB);
+      content.classList.toggle("bg-amber-50", showingB);
+      content.classList.toggle("text-amber-900", showingB);
+      btn.textContent = showingB ? "Back to Page A" : "Go to Page B";
+    }, 550);
+    btn.disabled = false;
+  });
+<\/script>`,
+    },
+  },
 ];

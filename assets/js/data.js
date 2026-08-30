@@ -35,7 +35,30 @@ const handleResize = debounce(() => {
   console.log("Window resized to", window.innerWidth);
 }, 250);
 
-window.addEventListener("resize", handleResize);`
+window.addEventListener("resize", handleResize);`,
+    preview: {
+      type: "js",
+      run: `function debounce(fn, delay = 300) {
+  let timeoutId;
+  return function debounced(...args) {
+    clearTimeout(timeoutId);
+    timeoutId = setTimeout(() => fn.apply(this, args), delay);
+  };
+}
+
+let executions = 0;
+const debounced = debounce(() => {
+  executions++;
+  console.log("Executed! (total executions so far: " + executions + ")");
+}, 300);
+
+console.log("Calling the debounced function 5 times rapidly...");
+for (let i = 1; i <= 5; i++) {
+  console.log("  call #" + i);
+  debounced();
+}
+console.log("Waiting for 300ms of silence...");`,
+    },
   },
   {
     id: "quicksort",
@@ -75,7 +98,32 @@ Because each recursive call works on a strictly smaller slice, the recursion alw
 
 // Usage
 console.log(quicksort([5, 3, 8, 1, 9, 2]));
-// [1, 2, 3, 5, 8, 9]`
+// [1, 2, 3, 5, 8, 9]`,
+    preview: {
+      type: "js",
+      run: `function quicksort(arr) {
+  if (arr.length <= 1) return arr;
+
+  const pivotIndex = Math.floor(arr.length / 2);
+  const pivot = arr[pivotIndex];
+
+  const left = [];
+  const middle = [];
+  const right = [];
+
+  for (const value of arr) {
+    if (value < pivot) left.push(value);
+    else if (value > pivot) right.push(value);
+    else middle.push(value);
+  }
+
+  return [...quicksort(left), ...middle, ...quicksort(right)];
+}
+
+const input = [5, 3, 8, 1, 9, 2];
+console.log("Input: ", JSON.stringify(input));
+console.log("Sorted:", JSON.stringify(quicksort(input)));`,
+    },
   },
   {
     id: "flexbox-center",
@@ -105,7 +153,16 @@ Because flexbox recalculates on every resize, the centered content stays centere
 .center-container .card {
   width: 320px;
   padding: 2rem;
-}`
+}`,
+    preview: {
+      type: "html",
+      height: 240,
+      markup: `<div class="center-container" style="background:#efeaff;">
+  <div class="card" style="background:#6c5ce7;color:#fff;border-radius:16px;text-align:center;font-family:-apple-system,Inter,sans-serif;font-weight:600;box-shadow:0 12px 32px rgba(108,92,231,0.35);">
+    🎯 Centered, no matter what
+  </div>
+</div>`,
+    },
   },
   {
     id: "promise-all-settled",
@@ -143,7 +200,34 @@ const data = await fetchAll([
   "/api/users",
   "/api/posts",
   "/api/comments",
-]);`
+]);`,
+    preview: {
+      type: "js",
+      run: `function fakeRequest(ms, value, shouldFail) {
+  return new Promise((resolve, reject) => {
+    setTimeout(() => (shouldFail ? reject(new Error(value)) : resolve(value)), ms);
+  });
+}
+
+async function fetchAll(promises) {
+  const results = await Promise.allSettled(promises);
+  return results
+    .filter((r) => r.status === "fulfilled")
+    .map((r) => r.value);
+}
+
+console.log("Firing 3 requests in parallel (one will fail)...");
+const requests = [
+  fakeRequest(300, "users: [Ada, Alan]", false),
+  fakeRequest(500, "posts: request timed out", true),
+  fakeRequest(200, "comments: 12 items", false),
+];
+
+fetchAll(requests).then((data) => {
+  console.log("All settled. Successful results kept:");
+  data.forEach((d) => console.log("  - " + d));
+});`,
+    },
   },
   {
     id: "python-binary-search",
@@ -181,7 +265,14 @@ If \`low\` ever crosses \`high\`, the window is empty and the target isn't prese
 
 # Usage
 numbers = [1, 3, 5, 7, 9, 11, 13]
-print(binary_search(numbers, 9))  # 4`
+print(binary_search(numbers, 9))  # 4`,
+    preview: {
+      type: "text",
+      output: `>>> numbers = [1, 3, 5, 7, 9, 11, 13]
+>>> binary_search(numbers, 9)
+4`,
+      note: "Python runs outside the browser, so this shows what executing the snippet above would actually print.",
+    },
   },
   {
     id: "css-grid-auto-fill",
@@ -209,7 +300,20 @@ print(binary_search(numbers, 9))  # 4`
 /* Each card just needs to exist — no width math required */
 .card-grid > .card {
   min-height: 180px;
-}`
+}`,
+    preview: {
+      type: "html",
+      height: 260,
+      resizable: true,
+      markup: `<div class="card-grid" style="padding:1rem;">
+  <div class="card" style="background:#6c5ce7;"></div>
+  <div class="card" style="background:#ff6b6b;"></div>
+  <div class="card" style="background:#00c2a8;"></div>
+  <div class="card" style="background:#ffab2e;"></div>
+  <div class="card" style="background:#ff5fa2;"></div>
+  <div class="card" style="background:#5341d6;"></div>
+</div>`,
+    },
   },
   {
     id: "js-deep-clone",
@@ -240,7 +344,23 @@ const clone = structuredClone(original);
 clone.address.city = "Paris";
 
 console.log(original.address.city); // "London" — untouched
-console.log(clone.address.city);    // "Paris"`
+console.log(clone.address.city);    // "Paris"`,
+    preview: {
+      type: "js",
+      run: `const original = {
+  name: "Ada",
+  createdAt: new Date(),
+  tags: new Set(["engineer", "pioneer"]),
+  address: { city: "London" },
+};
+
+const clone = structuredClone(original);
+clone.address.city = "Paris";
+
+console.log("original.address.city:", original.address.city);
+console.log("clone.address.city:   ", clone.address.city);
+console.log("clone.tags instanceof Set:", clone.tags instanceof Set);`,
+    },
   },
   {
     id: "react-like-usefetch",
@@ -286,7 +406,18 @@ The hook returns the three pieces of state as an object, so any component can de
   }, [url]);
 
   return { data, loading, error };
-}`
+}`,
+    preview: {
+      type: "text",
+      output: `// state over time for useFetch("/api/user/42")
+
+t=0ms    { data: null,        loading: true,  error: null }
+t=180ms  { data: { id: 42 }, loading: false, error: null }
+
+// if the request had failed instead:
+t=180ms  { data: null,        loading: false, error: Error("HTTP 500") }`,
+      note: "This hook depends on React and a live endpoint, so this preview shows the state shape over time rather than executing it in the browser.",
+    },
   },
   {
     id: "python-list-comprehension",
@@ -316,7 +447,13 @@ print(even_squares)
 even_squares_manual = []
 for n in numbers:
     if n % 2 == 0:
-        even_squares_manual.append(n ** 2)`
+        even_squares_manual.append(n ** 2)`,
+    preview: {
+      type: "text",
+      output: `>>> even_squares
+[4, 16, 36, 64, 100, 144, 196, 256, 324, 400]`,
+      note: "Python runs outside the browser, so this shows what executing the snippet above would actually print.",
+    },
   },
   {
     id: "css-custom-properties-theme",
@@ -355,7 +492,22 @@ body {
 
 .button {
   background: var(--accent);
-}`
+}`,
+    preview: {
+      type: "html",
+      height: 180,
+      markup: `<div style="padding:2rem;text-align:center;font-family:-apple-system,Inter,sans-serif;">
+  <p style="margin:0 0 1rem;">This box reads the CSS variables from the snippet above.</p>
+  <button class="button" id="demoToggle" style="border:0;color:#fff;padding:0.6rem 1.2rem;border-radius:999px;font-weight:600;cursor:pointer;">Toggle theme</button>
+</div>
+<script>
+  document.getElementById("demoToggle").addEventListener("click", () => {
+    const root = document.documentElement;
+    const isDark = root.getAttribute("data-theme") === "dark";
+    root.setAttribute("data-theme", isDark ? "light" : "dark");
+  });
+</script>`,
+    },
   },
   {
     id: "js-memoize",
@@ -394,7 +546,35 @@ This only makes sense for **pure** functions (same input always produces the sam
 const slowFib = (n) => (n <= 1 ? n : slowFib(n - 1) + slowFib(n - 2));
 const fastFib = memoize(slowFib);
 
-console.log(fastFib(30)); // computed once, cached forever`
+console.log(fastFib(30)); // computed once, cached forever`,
+    preview: {
+      type: "js",
+      run: `function memoize(fn) {
+  const cache = new Map();
+  return function (...args) {
+    const key = JSON.stringify(args);
+    if (cache.has(key)) return cache.get(key);
+    const result = fn(...args);
+    cache.set(key, result);
+    return result;
+  };
+}
+
+const slowSquare = (n) => {
+  let total = 0;
+  for (let i = 0; i < 3e6; i++) total += i; // simulate expensive work
+  return n * n;
+};
+const fastSquare = memoize(slowSquare);
+
+let start = performance.now();
+console.log("First call with 7 (runs the real function):");
+console.log("  result =", fastSquare(7), "  took", (performance.now() - start).toFixed(2) + "ms");
+
+start = performance.now();
+console.log("Second call with 7 (hits the cache):");
+console.log("  result =", fastSquare(7), "  took", (performance.now() - start).toFixed(2) + "ms");`,
+    },
   },
   {
     id: "python-context-manager",
@@ -427,6 +607,14 @@ class Timer:
 
 # Usage
 with Timer():
-    total = sum(n ** 2 for n in range(1_000_000))`
+    total = sum(n ** 2 for n in range(1_000_000))`,
+    preview: {
+      type: "text",
+      output: `>>> with Timer():
+...     total = sum(n ** 2 for n in range(1_000_000))
+...
+Elapsed: 0.0842s`,
+      note: "Python runs outside the browser, so this shows what executing the snippet above would actually print.",
+    },
   }
 ];

@@ -50,6 +50,8 @@ document.addEventListener("DOMContentLoaded", () => {
       <pre><code class="language-${langAlias(snippet.language)}" id="codeBlock"></code></pre>
     </div>
 
+    ${renderPreviewSection(snippet)}
+
     <section class="explanation">
       <h2>🧠 How it works</h2>
       <div class="explanation-body">${renderMarkdownLite(snippet.explanation)}</div>
@@ -82,6 +84,7 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 
   renderRelated(snippet);
+  initPreview(snippet);
 });
 
 function backArrow() {
@@ -126,6 +129,180 @@ function renderMarkdownLite(text) {
       return `<p>${formatInline(lines.join(" "))}</p>`;
     })
     .join("");
+}
+
+function refreshIcon() {
+  return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 3v6h-6"/></svg>`;
+}
+
+function renderPreviewSection(snippet) {
+  const preview = snippet.preview;
+  if (!preview) return "";
+
+  const badges = { js: "live", html: "live", text: "simulated" };
+  const badgeLabel = { js: "Live", html: "Live", text: "Example output" };
+  const badgeClass = preview.type === "text" ? "static" : "live";
+
+  let toolbarRight = "";
+  if (preview.type === "js") {
+    toolbarRight = `<button class="rerun-btn" id="previewRerun">${refreshIcon()} Run again</button>`;
+  } else if (preview.type === "html" && preview.resizable) {
+    toolbarRight = `
+      <div class="width-slider">
+        <span>Width</span>
+        <input type="range" id="previewWidth" min="200" max="700" value="700" />
+      </div>
+    `;
+  }
+
+  let body = "";
+  if (preview.type === "js") {
+    body = `<div class="preview-console" id="previewConsole"><span class="log-empty">Running…</span></div>`;
+  } else if (preview.type === "html") {
+    body = `
+      <div class="preview-stage">
+        <div class="preview-frame-wrap" id="previewFrameWrap" style="max-width:${preview.resizable ? "700px" : "100%"}">
+          <iframe class="preview-frame" id="previewFrame" sandbox="allow-scripts" title="Live preview of ${escapeHTML(snippet.title)}" height="${preview.height || 200}"></iframe>
+        </div>
+      </div>
+    `;
+  } else if (preview.type === "text") {
+    body = `
+      <div class="preview-text-block">
+        <pre>${escapeHTML(preview.output)}</pre>
+        ${preview.note ? `<p class="preview-note">💡 ${escapeHTML(preview.note)}</p>` : ""}
+      </div>
+    `;
+  }
+
+  return `
+    <section class="preview-section">
+      <h2>👀 Preview <span class="preview-badge ${badgeClass}">${badgeLabel[preview.type]}</span></h2>
+      <div class="preview-panel">
+        <div class="preview-toolbar">
+          <span class="preview-note" style="margin:0;">${previewToolbarLabel(preview.type)}</span>
+          ${toolbarRight}
+        </div>
+        ${body}
+      </div>
+    </section>
+  `;
+}
+
+function previewToolbarLabel(type) {
+  if (type === "js") return "Executed in a sandboxed frame — nothing here can touch this page.";
+  if (type === "html") return "Rendered with the exact CSS from the snippet above.";
+  return "Not executed in-browser — shown for reference.";
+}
+
+function buildJsSrcdoc(runCode) {
+  return `<!doctype html>
+<html><head><meta charset="utf-8"></head><body>
+<script>
+function __send(level, args) {
+  try {
+    var text = args.map(function (a) {
+      if (a instanceof Error) return a.message;
+      return typeof a === "object" && a !== null ? JSON.stringify(a) : String(a);
+    }).join(" ");
+    parent.postMessage({ __clPreview: true, level: level, text: text }, "*");
+  } catch (e) {}
+}
+console.log = function () { __send("log", Array.prototype.slice.call(arguments)); };
+console.error = function () { __send("error", Array.prototype.slice.call(arguments)); };
+window.addEventListener("error", function (e) { __send("error", [e.message]); });
+try {
+${runCode}
+} catch (err) {
+  __send("error", [err.message]);
+}
+<\/script>
+</body></html>`;
+}
+
+function buildHtmlSrcdoc(cssCode, markup) {
+  return `<!doctype html>
+<html><head><meta charset="utf-8">
+<style>
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body { font-family: -apple-system, "Inter", sans-serif; color: #1c1730; overflow: hidden; }
+  ${cssCode}
+</style>
+</head><body>
+${markup}
+<script>
+  function __postHeight() {
+    parent.postMessage({ __clPreviewHeight: true, height: document.documentElement.scrollHeight }, "*");
+  }
+  window.addEventListener("load", __postHeight);
+  if (window.ResizeObserver) {
+    new ResizeObserver(__postHeight).observe(document.body);
+  } else {
+    window.addEventListener("resize", __postHeight);
+  }
+  setTimeout(__postHeight, 50);
+<\/script>
+</body></html>`;
+}
+
+function initPreview(snippet) {
+  const preview = snippet.preview;
+  if (!preview) return;
+
+  if (preview.type === "js") {
+    const consoleEl = document.getElementById("previewConsole");
+    const rerunBtn = document.getElementById("previewRerun");
+    let frame = null;
+
+    const messageHandler = (event) => {
+      if (!frame || event.source !== frame.contentWindow || !event.data || !event.data.__clPreview) return;
+      if (consoleEl.querySelector(".log-empty")) consoleEl.innerHTML = "";
+      const line = document.createElement("div");
+      line.className = "log-line" + (event.data.level === "error" ? " is-error" : "");
+      line.textContent = event.data.text;
+      consoleEl.appendChild(line);
+      consoleEl.scrollTop = consoleEl.scrollHeight;
+    };
+    window.addEventListener("message", messageHandler);
+
+    function run() {
+      consoleEl.innerHTML = `<span class="log-empty">Running…</span>`;
+      frame = document.createElement("iframe");
+      frame.setAttribute("sandbox", "allow-scripts");
+      frame.style.display = "none";
+      frame.srcdoc = buildJsSrcdoc(preview.run);
+      document.body.appendChild(frame);
+      setTimeout(() => frame && frame.remove(), 4000);
+    }
+
+    rerunBtn?.addEventListener("click", () => {
+      if (frame) frame.remove();
+      rerunBtn.classList.add("is-spinning");
+      run();
+      setTimeout(() => rerunBtn.classList.remove("is-spinning"), 400);
+    });
+
+    run();
+  }
+
+  if (preview.type === "html") {
+    const iframe = document.getElementById("previewFrame");
+    const frameWrap = document.getElementById("previewFrameWrap");
+    const widthSlider = document.getElementById("previewWidth");
+
+    iframe.srcdoc = buildHtmlSrcdoc(snippet.code, preview.markup);
+
+    window.addEventListener("message", (event) => {
+      if (event.source !== iframe.contentWindow || !event.data || !event.data.__clPreviewHeight) return;
+      const h = Math.max(preview.height || 200, Math.min(event.data.height, 480));
+      iframe.style.height = h + "px";
+    });
+
+    widthSlider?.addEventListener("input", (e) => {
+      frameWrap.style.width = e.target.value + "px";
+    });
+  }
 }
 
 function renderRelated(current) {

@@ -72,7 +72,10 @@ wrong silently:
   nested backticks.
 
 After every edit to `data.js`, run `node --check assets/js/data.js` — a broken escape is
-a silent syntax error otherwise, not something you'll notice by eye.
+a silent syntax error otherwise, not something you'll notice by eye. If the snippet's own
+code needs to build strings dynamically (e.g. a CSS `transform` value), consider writing
+it with plain `+` concatenation instead of a nested template literal — it sidesteps the
+backtick/`${}` escaping entirely and reads just as clearly for a short expression.
 
 ## 3. Preview conventions
 
@@ -97,6 +100,19 @@ directly manipulate instead — an `<input type="range">` "Scroll progress" slid
 `input` event drives the exact same math the real component derives from scroll is the
 pattern used for the text-parallax preview; reuse it for the next scroll-driven effect
 rather than re-discovering this the hard way.
+
+**The `requestAnimationFrame` gotcha:** in this same sandboxed iframe, `requestAnimationFrame`
+does not fire at all — confirmed with Playwright by scheduling a 5-tick rAF loop and getting
+zero ticks after 2 full seconds, in an iframe that was definitely visible and correctly
+sized. `setInterval` (e.g. `setInterval(tick, 16)`) fires reliably in the same context and
+is a fine substitute for a preview's animation loop. This only applies to the *preview*
+markup — the snippet's real `code` field should still use `requestAnimationFrame`, since
+that's correct, standard practice for an actual page and the sandboxing quirk doesn't apply
+there. This was found while building the sticky-cursor preview (its cursor never grew or
+moved despite mousemove correctly identifying the hover target — the rAF loop driving the
+visual update was simply never running); it's worth specifically testing that a preview's
+animation loop is actually ticking (e.g. read a style property before and after a wait),
+not just that events are being received, since those are two independently-verified things.
 
 **`type: "text"`** is for anything that can't run in this sandbox at all — this is what
 the React/Next.js entry should use, since the iframe has no React/Next/framer-motion
@@ -163,6 +179,18 @@ failed once actually scrolled). Treat this step as mandatory:
    before pushing.
 6. Delete scratch test scripts and any temporary clone once done — they don't belong in
    the repo or its history.
+
+**Coordinate gotcha:** the explanation section above a preview can easily push it a couple
+thousand pixels down the page (a real page in this session had it at `y ≈ 4300`). Playwright's
+`elementHandle.boundingBox()` returns coordinates relative to the current viewport, so
+`page.mouse.move()` to an unscrolled element's box silently aims at nothing and every
+interaction test fails — not because the snippet is broken, but because the page was never
+scrolled there. Always `await page.locator(".preview-section").scrollIntoViewIfNeeded()`
+before measuring boxes or synthesizing input. Also remember an element handle obtained via
+a *frame's* own `$()`/`locator()` still reports page-relative coordinates from Playwright,
+but any coordinates you feed into a `TouchEvent`/`MouseEvent` you construct and dispatch
+*inside* that frame (via `frame.evaluate`) need to be frame-relative — subtract the iframe's
+own `boundingBox()` offset first, don't add it.
 
 ## 7. Commit and push
 

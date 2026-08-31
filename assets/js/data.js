@@ -1237,4 +1237,425 @@ export default function Hero() {
       note: "Needs a real Next.js + Framer Motion runtime to render, so it's shown for reference rather than executed here. The vanilla JS version of this component implements the exact same scroll math with zero dependencies and has a live, in-browser preview.",
     },
   },
+  {
+    id: "sticky-cursor",
+    title: "Sticky Cursor",
+    language: "javascript",
+    tags: ["cursor", "hover", "interaction", "touch"],
+    difficulty: "Advanced",
+    description: "A custom round cursor that snaps to the center of any hoverable element and stretches toward the pointer like a magnet — includes a draggable touch handle so the effect works without a mouse.",
+    explanation: `Instead of following the raw pointer position, this cursor checks on every move whether the pointer is over one of your "sticky" targets. If it is, the cursor snaps to that element's center and only leans 10% of the way toward the actual pointer — with a rotation and a stretch/squash proportional to how far off-center the pointer has wandered. Let go, and it eases back to a plain dot.
+
+**How it works**
+
+1. \`hitTest(x, y)\` walks the target list and returns whichever one's \`getBoundingClientRect()\` currently contains the point — this replaces relying on native \`mouseenter\`/\`mouseleave\`, which only fires for a real OS pointer. Doing the hit test manually on every position update is what lets the exact same code path drive both a real mouse and the simulated touch pointer below.
+2. When a target is active, \`dist\` is the vector from that target's center to the pointer. \`Math.atan2(dist.y, dist.x)\` becomes the cursor's rotation, and the larger \`abs(dist)\` gets, the more the cursor stretches along one axis and squashes along the other — capped at 1.3x/0.8x so it never overshoots into something rubbery-looking.
+3. The cursor doesn't jump straight to the target's center — \`targetX\`/\`targetY\` blend 90% center, 10% actual pointer position, so it visibly "pulls" toward wherever you are inside the element rather than looking dead-center-locked.
+4. \`smooth.x\`/\`smooth.y\` are eased toward that target position by a fraction (\`ease\`) every animation frame instead of being set directly — a cheap stand-in for a spring that's close enough for this effect without pulling in an animation library.
+5. On a coarse-pointer device (checked once via \`matchMedia("(pointer: coarse)")\`), a small ring — the "handle" — appears near the middle of the screen. Dragging it feeds the handle's touch position (offset up by \`HANDLE_OFFSET_Y\` px so your thumb doesn't cover the effect) into the exact same \`setPointer\` function real \`mousemove\` events use. \`touchmove\` only calls \`preventDefault()\` while the handle itself is actively being dragged, so normal page scrolling elsewhere is untouched.
+
+Adapted from Olivier Larose's Next.js + Framer Motion sticky-cursor demo. The touch drag handle isn't in the original — a hover-driven cursor effect is otherwise invisible and untestable on a phone or tablet, so it's a necessary addition here, not just a preview trick. There's a matching React/Next.js component under the React / Next.js filter, built the "real" way with Framer Motion's spring and motion values.`,
+    code: `/**
+ * Mark any element you want the cursor to "stick" to with [data-sticky]:
+ *   <button data-sticky>Hover me</button>
+ *
+ * createStickyCursor(document.querySelectorAll("[data-sticky]"));
+ *
+ * On coarse-pointer (touch) devices a small drag handle appears near the
+ * middle of the screen — drag it anywhere to move the cursor's virtual
+ * position and trigger the same stick/morph effect without a real mouse.
+ */
+function createStickyCursor(targets, options = {}) {
+  const opts = { size: 15, stickySize: 60, pull: 0.1, ease: 0.2, color: "#111", ...options };
+  const list = targets instanceof Element ? [targets] : Array.from(targets);
+
+  const cursor = document.createElement("div");
+  cursor.className = "sticky-cursor";
+  Object.assign(cursor.style, {
+    position: "fixed",
+    top: "0",
+    left: "0",
+    borderRadius: "50%",
+    background: opts.color,
+    pointerEvents: "none",
+    zIndex: 9999,
+    willChange: "transform",
+  });
+  document.body.appendChild(cursor);
+
+  let pointer = { x: innerWidth / 2, y: innerHeight / 2 };
+  let smooth = { x: pointer.x, y: pointer.y };
+  let active = null;
+
+  function hitTest(x, y) {
+    return (
+      list.find((el) => {
+        const r = el.getBoundingClientRect();
+        return x >= r.left && x <= r.right && y >= r.top && y <= r.bottom;
+      }) || null
+    );
+  }
+
+  function setPointer(x, y) {
+    pointer.x = x;
+    pointer.y = y;
+    active = hitTest(x, y);
+  }
+
+  function frame() {
+    if (active) {
+      const r = active.getBoundingClientRect();
+      const center = { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+      const dist = { x: pointer.x - center.x, y: pointer.y - center.y };
+      const abs = Math.max(Math.abs(dist.x), Math.abs(dist.y));
+      const scaleX = 1 + Math.min(abs / (r.height / 2), 1) * 0.3;
+      const scaleY = 1 - Math.min(abs / (r.width / 2), 1) * 0.2;
+      const angle = Math.atan2(dist.y, dist.x);
+
+      smooth.x += (center.x + dist.x * opts.pull - smooth.x) * opts.ease;
+      smooth.y += (center.y + dist.y * opts.pull - smooth.y) * opts.ease;
+
+      cursor.style.width = opts.stickySize + "px";
+      cursor.style.height = opts.stickySize + "px";
+      cursor.style.transform =
+        "translate(" + (smooth.x - opts.stickySize / 2) + "px, " + (smooth.y - opts.stickySize / 2) + "px) " +
+        "rotate(" + angle + "rad) scaleX(" + scaleX + ") scaleY(" + scaleY + ")";
+    } else {
+      smooth.x += (pointer.x - smooth.x) * opts.ease;
+      smooth.y += (pointer.y - smooth.y) * opts.ease;
+      cursor.style.width = opts.size + "px";
+      cursor.style.height = opts.size + "px";
+      cursor.style.transform = "translate(" + (smooth.x - opts.size / 2) + "px, " + (smooth.y - opts.size / 2) + "px)";
+    }
+    raf = requestAnimationFrame(frame);
+  }
+  let raf = requestAnimationFrame(frame);
+
+  function onMouseMove(e) {
+    setPointer(e.clientX, e.clientY);
+  }
+  window.addEventListener("mousemove", onMouseMove);
+
+  // ---- Touch/mobile: a draggable handle stands in for a real mouse ----
+  const HANDLE_OFFSET_Y = 56; // keeps the effect visible above your thumb
+  let handle = null;
+  let dragging = false;
+
+  function createHandle() {
+    handle = document.createElement("div");
+    handle.className = "sticky-cursor-handle";
+    Object.assign(handle.style, {
+      position: "fixed",
+      width: "44px",
+      height: "44px",
+      borderRadius: "50%",
+      border: "2px solid " + opts.color,
+      background: "rgba(255,255,255,.6)",
+      touchAction: "none",
+      zIndex: 10000,
+      left: pointer.x - 22 + "px",
+      top: pointer.y + HANDLE_OFFSET_Y - 22 + "px",
+    });
+    document.body.appendChild(handle);
+
+    handle.addEventListener(
+      "touchstart",
+      (e) => {
+        dragging = true;
+        e.preventDefault();
+      },
+      { passive: false }
+    );
+    window.addEventListener(
+      "touchmove",
+      (e) => {
+        if (!dragging) return;
+        e.preventDefault();
+        const t = e.touches[0];
+        handle.style.left = t.clientX - 22 + "px";
+        handle.style.top = t.clientY - 22 + "px";
+        setPointer(t.clientX, t.clientY - HANDLE_OFFSET_Y);
+      },
+      { passive: false }
+    );
+    window.addEventListener("touchend", () => {
+      dragging = false;
+    });
+  }
+
+  if (matchMedia("(pointer: coarse)").matches) createHandle();
+
+  return {
+    destroy() {
+      cancelAnimationFrame(raf);
+      window.removeEventListener("mousemove", onMouseMove);
+      cursor.remove();
+      handle && handle.remove();
+    },
+  };
+}
+
+// Usage
+createStickyCursor(document.querySelectorAll("[data-sticky]"));`,
+    preview: {
+      type: "html",
+      height: 400,
+      markup: `<div id="stage" style="height:260px;border-radius:14px;background:#f8fafc;display:flex;align-items:center;justify-content:center;gap:20px;">
+  <button data-sticky style="padding:14px 26px;border-radius:999px;border:1px solid #cbd5e1;background:#fff;font:600 14px -apple-system,sans-serif;cursor:pointer;">Hover me</button>
+  <button data-sticky style="padding:14px 26px;border-radius:999px;border:1px solid #cbd5e1;background:#fff;font:600 14px -apple-system,sans-serif;cursor:pointer;">...and me</button>
+</div>
+<p style="text-align:center;margin:12px 0 0;font:600 12px -apple-system,sans-serif;color:#64748b;">Hover the buttons with a mouse — or on touch, drag the ring below them.</p>
+<style>
+  body { margin:0; background:#f8fafc; }
+</style>
+<script>
+  function createStickyCursor(targets, options) {
+    var opts = Object.assign({ size: 15, stickySize: 60, pull: 0.1, ease: 0.2, color: "#111" }, options);
+    var list = targets instanceof Element ? [targets] : Array.prototype.slice.call(targets);
+
+    var cursor = document.createElement("div");
+    cursor.className = "sticky-cursor";
+    Object.assign(cursor.style, {
+      position: "fixed", top: "0", left: "0", borderRadius: "50%",
+      background: opts.color, pointerEvents: "none", zIndex: 9999, willChange: "transform",
+    });
+    document.body.appendChild(cursor);
+
+    var pointer = { x: innerWidth / 2, y: innerHeight / 2 };
+    var smooth = { x: pointer.x, y: pointer.y };
+    var active = null;
+
+    function hitTest(x, y) {
+      var found = null;
+      list.forEach(function (el) {
+        var r = el.getBoundingClientRect();
+        if (x >= r.left && x <= r.right && y >= r.top && y <= r.bottom) found = el;
+      });
+      return found;
+    }
+
+    function setPointer(x, y) {
+      pointer.x = x;
+      pointer.y = y;
+      active = hitTest(x, y);
+    }
+
+    function frame() {
+      if (active) {
+        var r = active.getBoundingClientRect();
+        var center = { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+        var dist = { x: pointer.x - center.x, y: pointer.y - center.y };
+        var abs = Math.max(Math.abs(dist.x), Math.abs(dist.y));
+        var scaleX = 1 + Math.min(abs / (r.height / 2), 1) * 0.3;
+        var scaleY = 1 - Math.min(abs / (r.width / 2), 1) * 0.2;
+        var angle = Math.atan2(dist.y, dist.x);
+
+        smooth.x += (center.x + dist.x * opts.pull - smooth.x) * opts.ease;
+        smooth.y += (center.y + dist.y * opts.pull - smooth.y) * opts.ease;
+
+        cursor.style.width = opts.stickySize + "px";
+        cursor.style.height = opts.stickySize + "px";
+        cursor.style.transform =
+          "translate(" + (smooth.x - opts.stickySize / 2) + "px, " + (smooth.y - opts.stickySize / 2) + "px) " +
+          "rotate(" + angle + "rad) scaleX(" + scaleX + ") scaleY(" + scaleY + ")";
+      } else {
+        smooth.x += (pointer.x - smooth.x) * opts.ease;
+        smooth.y += (pointer.y - smooth.y) * opts.ease;
+        cursor.style.width = opts.size + "px";
+        cursor.style.height = opts.size + "px";
+        cursor.style.transform = "translate(" + (smooth.x - opts.size / 2) + "px, " + (smooth.y - opts.size / 2) + "px)";
+      }
+    }
+    setInterval(frame, 16);
+
+    window.addEventListener("mousemove", function (e) { setPointer(e.clientX, e.clientY); });
+
+    if (matchMedia("(pointer: coarse)").matches) {
+      var handle = document.createElement("div");
+      handle.className = "sticky-cursor-handle";
+      var HANDLE_OFFSET_Y = 56;
+      Object.assign(handle.style, {
+        position: "fixed", width: "44px", height: "44px", borderRadius: "50%",
+        border: "2px solid " + opts.color, background: "rgba(255,255,255,.6)",
+        touchAction: "none", zIndex: 10000,
+        left: (pointer.x - 22) + "px", top: (pointer.y + HANDLE_OFFSET_Y - 22) + "px",
+      });
+      document.body.appendChild(handle);
+
+      var dragging = false;
+      handle.addEventListener("touchstart", function (e) { dragging = true; e.preventDefault(); }, { passive: false });
+      window.addEventListener("touchmove", function (e) {
+        if (!dragging) return;
+        e.preventDefault();
+        var t = e.touches[0];
+        handle.style.left = (t.clientX - 22) + "px";
+        handle.style.top = (t.clientY - 22) + "px";
+        setPointer(t.clientX, t.clientY - HANDLE_OFFSET_Y);
+      }, { passive: false });
+      window.addEventListener("touchend", function () { dragging = false; });
+    }
+  }
+
+  createStickyCursor(document.querySelectorAll("[data-sticky]"));
+<\/script>`,
+    },
+  },
+  {
+    id: "sticky-cursor-next",
+    title: "Sticky Cursor (Next.js)",
+    language: "react",
+    tags: ["cursor", "hover", "interaction", "touch", "framer-motion", "next.js"],
+    difficulty: "Advanced",
+    description: "The same magnetic sticky cursor as a copy-paste React/Next.js component — pass it a list of target refs and Framer Motion's spring drives the follow, rotate, and stretch.",
+    explanation: `This is the "real" version of the vanilla sticky-cursor component: instead of hand-rolling the follow-easing with a per-frame lerp, it uses Framer Motion's \`useSpring\` on motion values, and \`animate()\` for the one-off rotate/scale resets.
+
+**How it works**
+
+1. \`targets\` is a plain array of refs — \`update()\` checks each target's \`getBoundingClientRect()\` against the pointer on every move, exactly like the vanilla version's \`hitTest\`, so there's nothing framework-specific about which element is "sticky."
+2. \`mouse.x\`/\`mouse.y\` are \`useMotionValue\`s; wrapping them in \`useSpring\` gives the cursor its follow-lag for free, with the spring's \`damping\`/\`stiffness\`/\`mass\` controlling exactly how loose or snappy it feels — no manual easing math needed.
+3. \`scale.x\`/\`scale.y\` are set from \`transform(abs, [0, range], [1, max])\`, Framer Motion's clamped linear interpolation helper — the same mapping the vanilla version does by hand with \`Math.min\`.
+4. The touch handle is wired up with a plain \`useEffect\` and native \`addEventListener(..., { passive: false })\` rather than React's \`onTouchMove\` prop — React marks touch listeners passive by default, which silently breaks \`preventDefault()\`, so the handle needs a real DOM listener to reliably stop the page from scrolling while it's being dragged.
+
+Install \`framer-motion\` as the one dependency. Render \`<StickyCursor targets={[...refs]} />\` once, anywhere in the tree — it's fixed-positioned, so it doesn't need to live near the elements it sticks to.`,
+    code: `"use client";
+
+import { useEffect, useRef, useState } from "react";
+import { motion, useMotionValue, useSpring, animate, transform } from "framer-motion";
+
+/**
+ * const btnRef = useRef(null);
+ * <button ref={btnRef}>Hover me</button>
+ * <StickyCursor targets={[btnRef]} />
+ *
+ * targets is an array of refs to the elements the cursor should stick to.
+ * On coarse-pointer (touch) devices a draggable handle also renders, so
+ * the effect can be demoed without a mouse.
+ */
+export default function StickyCursor({ targets, size = 15, stickySize = 60, pull = 0.1 }) {
+  const cursorRef = useRef(null);
+  const activeRef = useRef(null);
+  const [cursorSize, setCursorSize] = useState(size);
+
+  const mouse = { x: useMotionValue(0), y: useMotionValue(0) };
+  const scale = { x: useMotionValue(1), y: useMotionValue(1) };
+  const smooth = {
+    x: useSpring(mouse.x, { damping: 20, stiffness: 300, mass: 0.5 }),
+    y: useSpring(mouse.y, { damping: 20, stiffness: 300, mass: 0.5 }),
+  };
+
+  function update(clientX, clientY) {
+    const hit = targets
+      .map((r) => r.current)
+      .find((el) => {
+        if (!el) return false;
+        const rect = el.getBoundingClientRect();
+        return clientX >= rect.left && clientX <= rect.right && clientY >= rect.top && clientY <= rect.bottom;
+      });
+
+    if ((hit || null) !== activeRef.current) {
+      activeRef.current = hit || null;
+      setCursorSize(hit ? stickySize : size);
+      if (!hit) animate(cursorRef.current, { scaleX: 1, scaleY: 1 }, { duration: 0.15 });
+    }
+
+    if (hit) {
+      const rect = hit.getBoundingClientRect();
+      const center = { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+      const dist = { x: clientX - center.x, y: clientY - center.y };
+      animate(cursorRef.current, { rotate: Math.atan2(dist.y, dist.x) + "rad" }, { duration: 0 });
+
+      const abs = Math.max(Math.abs(dist.x), Math.abs(dist.y));
+      scale.x.set(transform(abs, [0, rect.height / 2], [1, 1.3]));
+      scale.y.set(transform(abs, [0, rect.width / 2], [1, 0.8]));
+
+      mouse.x.set(center.x - stickySize / 2 + dist.x * pull);
+      mouse.y.set(center.y - stickySize / 2 + dist.y * pull);
+    } else {
+      mouse.x.set(clientX - size / 2);
+      mouse.y.set(clientY - size / 2);
+    }
+  }
+
+  useEffect(() => {
+    const onMove = (e) => update(e.clientX, e.clientY);
+    window.addEventListener("mousemove", onMove);
+    return () => window.removeEventListener("mousemove", onMove);
+  }, []);
+
+  // ---- Touch/mobile: a draggable handle stands in for a real mouse ----
+  const handleRef = useRef(null);
+  const [isTouch, setIsTouch] = useState(false);
+  const HANDLE_OFFSET_Y = 56;
+
+  useEffect(() => {
+    setIsTouch(matchMedia("(pointer: coarse)").matches);
+  }, []);
+
+  useEffect(() => {
+    const handle = handleRef.current;
+    if (!handle) return;
+
+    handle.style.left = innerWidth / 2 - 22 + "px";
+    handle.style.top = innerHeight / 2 + HANDLE_OFFSET_Y - 22 + "px";
+
+    let dragging = false;
+    const onStart = (e) => {
+      dragging = true;
+      e.preventDefault();
+    };
+    const onMove = (e) => {
+      if (!dragging) return;
+      e.preventDefault();
+      const t = e.touches[0];
+      handle.style.left = t.clientX - 22 + "px";
+      handle.style.top = t.clientY - 22 + "px";
+      update(t.clientX, t.clientY - HANDLE_OFFSET_Y);
+    };
+    const onEnd = () => {
+      dragging = false;
+    };
+
+    handle.addEventListener("touchstart", onStart, { passive: false });
+    window.addEventListener("touchmove", onMove, { passive: false });
+    window.addEventListener("touchend", onEnd);
+    return () => {
+      handle.removeEventListener("touchstart", onStart);
+      window.removeEventListener("touchmove", onMove);
+      window.removeEventListener("touchend", onEnd);
+    };
+  }, [isTouch]);
+
+  return (
+    <>
+      <motion.div
+        ref={cursorRef}
+        style={{ left: smooth.x, top: smooth.y, scaleX: scale.x, scaleY: scale.y }}
+        animate={{ width: cursorSize, height: cursorSize }}
+        className="pointer-events-none fixed left-0 top-0 z-[9999] rounded-full bg-black"
+      />
+      {isTouch && (
+        <div
+          ref={handleRef}
+          className="fixed z-[10000] h-11 w-11 rounded-full border-2 border-black/70 bg-white/60 backdrop-blur-sm"
+          style={{ touchAction: "none" }}
+        />
+      )}
+    </>
+  );
+}`,
+    preview: {
+      type: "text",
+      output: `const btn1 = useRef(null);
+const btn2 = useRef(null);
+
+return (
+  <>
+    <button ref={btn1}>Hover me</button>
+    <button ref={btn2}>...and me</button>
+    <StickyCursor targets={[btn1, btn2]} />
+  </>
+);`,
+      note: "Needs a real Next.js + Framer Motion runtime to render, so it's shown for reference rather than executed here. The vanilla JS version of this component implements the exact same stick/stretch math (plus the same touch drag handle) with zero dependencies and has a live, in-browser preview.",
+    },
+  },
 ];

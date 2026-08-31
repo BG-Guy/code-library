@@ -1402,14 +1402,39 @@ initHoverTeaserMenu(document.getElementById("menu"), [
 
 **How it works**
 
-1. \`initDotUnderline\` appends one small \`.du-dot\` span to the link and drives its geometry entirely through the Web Animations API (\`element.animate()\`) rather than a CSS transition, because the effect genuinely has two sequential phases rather than several properties changing together.
-2. \`grow()\` first fades the dot in (\`opacity 0 → 1\`) and, only once that animation's \`.finished\` promise resolves, *then* stretches it from a small centered circle into a full-width, flat bar. That sequencing — fade first, stretch second — is what gives the effect its two-beat feel instead of everything happening in one blur.
-3. \`shrink()\` runs the same two steps in reverse: the bar contracts back down into a dot first, and only once *that* finishes does it fade away — so hovering off always undoes the animation as a mirror image of hovering on.
-4. Calling \`.cancel()\` on whatever animation is still running before starting a new one means rapidly hovering on and off doesn't queue up a stack of animations — each new \`grow()\`/\`shrink()\` call cleanly takes over from wherever the dot currently is, instead of waiting for a stale one to finish first.
-5. Touch handling matches the same pattern used elsewhere in this library: the \`pointerType\` recorded on \`pointerdown\` decides whether a click activates immediately (mouse — real hover already showed the effect) or needs a first "priming" tap (touch) before a second tap lets the navigation through.
+1. \`ensureStyles\` injects one \`<style>\` tag defining the \`.du-dot\` span's resting state — a tiny 6px circle centered beneath the link, already nudged down 6px and fully transparent (\`opacity: 0\`) — so the element has a sensible starting point before any animation has ever run on it.
+2. \`initDotUnderline\` then appends one \`.du-dot\` span to the link and drives its geometry through the Web Animations API (\`element.animate()\`) rather than a CSS transition from that point on, because the effect genuinely has two sequential phases rather than several properties changing together.
+3. \`grow()\` first rises the dot up from just beneath the link while fading it in (\`translateY(6px) → translateY(0)\` alongside \`opacity 0 → 1\`) and, only once that animation's \`.finished\` promise resolves, *then* stretches it from a small centered circle into a full-width, flat bar. That sequencing — rise-and-fade first, stretch second — is what gives the effect its two-beat feel instead of everything happening in one blur.
+4. \`shrink()\` runs the same two phases in reverse: the bar contracts back down into a dot first, and only once *that* finishes does it sink back down and fade away — so hovering off always undoes the animation as a mirror image of hovering on.
+5. Calling \`.cancel()\` on whatever animation is still running before starting a new one means rapidly hovering on and off doesn't queue up a stack of animations — each new \`grow()\`/\`shrink()\` call cleanly takes over from wherever the dot currently is, instead of waiting for a stale one to finish first.
+6. Touch handling matches the same pattern used elsewhere in this library: the \`pointerType\` recorded on \`pointerdown\` decides whether a click activates immediately (mouse — real hover already showed the effect) or needs a first "priming" tap (touch) before a second tap lets the navigation through.
 
 Because the whole thing is one small span and one initializer function, wiring it into a nav bar — with or without another hover effect layered on top — is a single \`querySelectorAll\` + \`forEach\` away.`,
-    code: `function initDotUnderline(link, { color = "currentColor" } = {}) {
+    code: `const STYLE_ID = "dot-underline-styles";
+
+function ensureStyles() {
+  if (document.getElementById(STYLE_ID)) return;
+
+  const style = document.createElement("style");
+  style.id = STYLE_ID;
+  style.textContent = \`
+    .du-dot {
+      position: absolute;
+      bottom: -6px;
+      left: calc(50% - 3px);
+      width: 6px;
+      height: 6px;
+      border-radius: 999px;
+      opacity: 0;
+      transform: translateY(6px);
+      pointer-events: none;
+    }
+  \`;
+  document.head.appendChild(style);
+}
+
+function initDotUnderline(link, { color = "currentColor" } = {}) {
+  ensureStyles();
   link.style.position = "relative";
 
   const dot = document.createElement("span");
@@ -1421,12 +1446,17 @@ Because the whole thing is one small span and one initializer function, wiring i
 
   async function grow() {
     currentAnimation?.cancel();
+    // Phase 1: rise up from just beneath the link, fading in as a small dot
     currentAnimation = dot.animate(
-      [{ opacity: 0 }, { opacity: 1 }],
+      [
+        { opacity: 0, transform: "translateY(6px)" },
+        { opacity: 1, transform: "translateY(0px)" },
+      ],
       { duration: 150, easing: "ease-out", fill: "forwards" }
     );
     await currentAnimation.finished;
 
+    // Phase 2: stretch the dot into a full-width underline
     currentAnimation = dot.animate(
       [
         { width: "6px", height: "6px", left: "calc(50% - 3px)", borderRadius: "999px" },
@@ -1438,6 +1468,7 @@ Because the whole thing is one small span and one initializer function, wiring i
 
   async function shrink() {
     currentAnimation?.cancel();
+    // Phase 1: contract the bar back down into a dot
     currentAnimation = dot.animate(
       [
         { width: "100%", height: "2px", left: "0%", borderRadius: "0px" },
@@ -1447,8 +1478,12 @@ Because the whole thing is one small span and one initializer function, wiring i
     );
     await currentAnimation.finished;
 
+    // Phase 2: sink back down beneath the link, fading out
     currentAnimation = dot.animate(
-      [{ opacity: 1 }, { opacity: 0 }],
+      [
+        { opacity: 1, transform: "translateY(0px)" },
+        { opacity: 0, transform: "translateY(6px)" },
+      ],
       { duration: 150, easing: "ease-out", fill: "forwards" }
     );
   }
@@ -1512,6 +1547,7 @@ document.querySelectorAll("nav a").forEach((link) => {
     height: 6px;
     border-radius: 999px;
     opacity: 0;
+    transform: translateY(6px);
     pointer-events: none;
     background: #4f46e5;
   }
@@ -1527,7 +1563,10 @@ document.querySelectorAll("nav a").forEach((link) => {
     function grow() {
       if (currentAnimation) currentAnimation.cancel();
       currentAnimation = dot.animate(
-        [{ opacity: 0 }, { opacity: 1 }],
+        [
+          { opacity: 0, transform: "translateY(6px)" },
+          { opacity: 1, transform: "translateY(0px)" }
+        ],
         { duration: 150, easing: "ease-out", fill: "forwards" }
       );
       currentAnimation.finished.then(function () {
@@ -1552,7 +1591,10 @@ document.querySelectorAll("nav a").forEach((link) => {
       );
       currentAnimation.finished.then(function () {
         currentAnimation = dot.animate(
-          [{ opacity: 1 }, { opacity: 0 }],
+          [
+            { opacity: 1, transform: "translateY(0px)" },
+            { opacity: 0, transform: "translateY(6px)" }
+          ],
           { duration: 150, easing: "ease-out", fill: "forwards" }
         );
       }).catch(function () {});

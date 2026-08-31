@@ -1,9 +1,10 @@
 /* Code Library — snippet dataset.
    Plain JS array (not fetched) so the site also works when opened via file://.
-   Scope: web development only — vanilla JavaScript (frontend). */
+   Scope: web development only — vanilla JavaScript (frontend), and React/Next.js. */
 
 const LANGUAGE_LABELS = {
   javascript: "JavaScript",
+  react: "React / Next.js",
 };
 
 const SNIPPETS = [
@@ -1008,6 +1009,232 @@ document.querySelectorAll("nav a").forEach((link) => {
     initDotUnderline(link);
   });
 <\/script>`,
+    },
+  },
+  {
+    id: "infinite-text-parallax",
+    title: "Infinite Text Parallax",
+    language: "javascript",
+    tags: ["scroll", "animation", "parallax", "marquee"],
+    difficulty: "Advanced",
+    description: "Repeating rows of text drift sideways at different rates as the page scrolls past them — the marquee-style parallax popular on agency and portfolio hero sections, in about 30 dependency-free lines.",
+    explanation: `A "text parallax" section repeats one short phrase across a full-width row — enough times that it always fills edge-to-edge — then nudges that row sideways as the section scrolls through the viewport. Stack a few rows with alternating directions and you get the layered, cinematic drift you see on a lot of agency and portfolio homepages.
+
+**How it works**
+
+1. \`progress()\` reads the wrapping \`.tp-viewport\` element's position with \`getBoundingClientRect()\` on every scroll tick and maps it to a 0–1 value: \`0\` the moment the section's top edge touches the bottom of the screen, \`1\` the moment its bottom edge touches the top of the screen — the same "how far has this scrolled through the viewport" curve Framer Motion's \`useScroll\` gives you for free, built here from scratch.
+2. Each \`.tp-row\` reads its own \`data-direction\` attribute and gets a \`translateX\` that starts on one side at progress \`0\` and ends on the opposite side at progress \`1\`. Rows marked \`"left"\` and \`"right"\` drift in opposite directions, which is what actually sells the parallax depth.
+3. The scroll handler is wrapped in a \`requestAnimationFrame\` throttle (the \`ticking\` flag) so the relatively expensive \`getBoundingClientRect()\` call only runs once per frame no matter how many \`scroll\` events fire.
+4. The factory returns \`update()\` and \`destroy()\` so you can force a recompute after a layout change, or tear down the listeners when the section leaves the page in a single-page app.
+
+Adapted from Olivier Larose's Next.js + Framer Motion text-parallax demo, rebuilt here with zero dependencies so it runs in any plain HTML page. There's a matching React/Next.js component under the React / Next.js filter, built the "real" way with \`useScroll\`/\`useTransform\`, for anyone already in that ecosystem.`,
+    code: `/* ---- CSS (add once to your stylesheet) ----
+.tp-viewport { overflow: hidden; }
+.tp-row { display: flex; white-space: nowrap; will-change: transform; }
+.tp-item { padding: 0 1.5rem; font-weight: 800; }
+------------------------------------------------ */
+
+/**
+ * Markup contract — one .tp-row per line of text, repeated .tp-item spans
+ * inside each row until it comfortably overflows edge-to-edge:
+ *
+ * <div class="tp-viewport">
+ *   <div class="tp-row" data-direction="left">
+ *     <span class="tp-item">Front End Developer</span>
+ *     <span class="tp-item">Front End Developer</span>
+ *     <span class="tp-item">Front End Developer</span>
+ *   </div>
+ *   <div class="tp-row" data-direction="right"> ... </div>
+ * </div>
+ */
+function createTextParallax(viewport, { speed = 150 } = {}) {
+  const rows = [...viewport.querySelectorAll("[data-direction]")];
+
+  function progress() {
+    const rect = viewport.getBoundingClientRect();
+    const start = window.innerHeight; // viewport's top hits the bottom of the screen -> 0
+    const end = -rect.height;         // viewport's bottom hits the top of the screen -> 1
+    return Math.min(1, Math.max(0, (start - rect.top) / (start - end)));
+  }
+
+  function update() {
+    const p = progress();
+    for (const row of rows) {
+      const dir = row.dataset.direction === "right" ? 1 : -1;
+      row.style.transform = \`translateX(\${speed * dir * (2 * p - 1)}px)\`;
+    }
+  }
+
+  let ticking = false;
+  function onScroll() {
+    if (ticking) return;
+    ticking = true;
+    requestAnimationFrame(() => {
+      update();
+      ticking = false;
+    });
+  }
+
+  window.addEventListener("scroll", onScroll, { passive: true });
+  window.addEventListener("resize", onScroll);
+  update();
+
+  return {
+    update,
+    destroy() {
+      window.removeEventListener("scroll", onScroll);
+      window.removeEventListener("resize", onScroll);
+    },
+  };
+}
+
+// Usage
+createTextParallax(document.querySelector(".tp-viewport"), { speed: 180 });`,
+    preview: {
+      type: "html",
+      height: 320,
+      markup: `<div style="max-width:640px;margin:0 auto;border-radius:14px;overflow:hidden;background:#0f172a;padding:36px 0;">
+  <div id="tpViewport" class="tp-viewport">
+    <div class="tp-row" data-direction="left">
+      <span class="tp-item">Front End Developer</span>
+      <span class="tp-item">Front End Developer</span>
+      <span class="tp-item">Front End Developer</span>
+    </div>
+    <div class="tp-row" data-direction="right">
+      <span class="tp-item">Creative Coder</span>
+      <span class="tp-item">Creative Coder</span>
+      <span class="tp-item">Creative Coder</span>
+    </div>
+    <div class="tp-row" data-direction="left">
+      <span class="tp-item">Open To Work</span>
+      <span class="tp-item">Open To Work</span>
+      <span class="tp-item">Open To Work</span>
+    </div>
+  </div>
+</div>
+<div style="max-width:640px;margin:16px auto 0;display:flex;align-items:center;gap:10px;font:600 12px -apple-system,sans-serif;color:#475569;">
+  <span>Scroll progress</span>
+  <input id="tpRange" type="range" min="0" max="100" value="24" style="flex:1;accent-color:#4f46e5;" />
+</div>
+<style>
+  body { margin:0; background:#f8fafc; }
+  .tp-viewport { overflow:hidden; }
+  .tp-row { display:flex; white-space:nowrap; will-change:transform; }
+  .tp-item { padding:0 1rem; font-size:7vw; font-weight:800; letter-spacing:-0.02em; color:#fff; }
+</style>
+<script>
+  var viewport = document.getElementById("tpViewport");
+  var rows = Array.prototype.slice.call(viewport.querySelectorAll("[data-direction]"));
+  var speed = 140;
+
+  function apply(progressPercent) {
+    var p = progressPercent / 100;
+    rows.forEach(function (row) {
+      var dir = row.dataset.direction === "right" ? 1 : -1;
+      row.style.transform = "translateX(" + (speed * dir * (2 * p - 1)) + "px)";
+    });
+  }
+
+  var range = document.getElementById("tpRange");
+  range.addEventListener("input", function () { apply(range.value); });
+  apply(range.value);
+<\/script>`,
+    },
+  },
+  {
+    id: "infinite-text-parallax-next",
+    title: "Infinite Text Parallax (Next.js)",
+    language: "react",
+    tags: ["scroll", "animation", "parallax", "marquee", "framer-motion", "next.js"],
+    difficulty: "Advanced",
+    description: "The same scroll-linked marquee as a copy-paste React/Next.js component — drop it in components/ui, pass it a list of rows, and Framer Motion drives the transform off real scroll progress.",
+    explanation: `This is the "real" version of the vanilla text-parallax component: instead of hand-rolling scroll progress with \`getBoundingClientRect\`, it uses Framer Motion's \`useScroll\`/\`useTransform\`, which do the same job with less code and a built-in spring-free interpolation curve.
+
+**How it works**
+
+1. \`useScroll({ target: container, offset: ["start end", "end start"] })\` tracks \`container\`'s position against the viewport and exposes a motion value, \`scrollYProgress\`, that runs from \`0\` (container's top just entering the bottom of the screen) to \`1\` (container's bottom just leaving the top).
+2. Each row's \`useTransform(progress, [0, 1], [speed * dir, -speed * dir])\` maps that same \`0–1\` progress straight to a pixel offset — no manual scroll listeners, throttling, or cleanup to write, Framer Motion subscribes to the motion value directly.
+3. \`rows\` is a plain array of \`{ text, direction, image }\` objects, so the component itself never hardcodes copy — add, remove, or reorder rows from wherever you render \`<TextParallax />\`.
+4. Because it's a single default-exported component with no context or provider required, it drops straight into \`components/ui/text-parallax.jsx\` the way a shadcn/ui component would: copy the file, import it, done.
+
+Install \`framer-motion\` as the one required dependency. Pair it with \`lenis\` (\`npm i lenis\`) for buttery-smooth inertial scrolling — that's what the original demo this is adapted from uses — but it's entirely optional, the parallax math works fine against native scroll.`,
+    code: `"use client";
+
+import Image from "next/image";
+import { useRef } from "react";
+import { motion, useScroll, useTransform } from "framer-motion";
+
+/**
+ * Usage:
+ *
+ * <TextParallax
+ *   rows={[
+ *     { text: "Front End Developer", direction: "left", image: "/1.jpg" },
+ *     { text: "Creative Coder", direction: "right", image: "/2.jpg" },
+ *     { text: "Open To Work", direction: "left", image: "/3.jpg" },
+ *   ]}
+ * />
+ *
+ * Render it between two full-height spacer sections — the effect is driven
+ * by how far the component has scrolled through the viewport, not a timer.
+ */
+export default function TextParallax({ rows, speed = 150 }) {
+  const container = useRef(null);
+  const { scrollYProgress } = useScroll({
+    target: container,
+    offset: ["start end", "end start"],
+  });
+
+  return (
+    <div ref={container} className="overflow-hidden">
+      {rows.map((row, i) => (
+        <ParallaxRow key={i} {...row} speed={speed} progress={scrollYProgress} />
+      ))}
+    </div>
+  );
+}
+
+function ParallaxRow({ text, direction = "left", image, speed, progress }) {
+  const dir = direction === "right" ? 1 : -1;
+  const x = useTransform(progress, [0, 1], [speed * dir, -speed * dir]);
+
+  return (
+    <motion.div style={{ x }} className="relative flex whitespace-nowrap">
+      {[0, 1, 2].map((i) => (
+        <Phrase key={i} text={text} image={image} />
+      ))}
+    </motion.div>
+  );
+}
+
+function Phrase({ text, image }) {
+  return (
+    <div className="flex items-center gap-5 px-5">
+      <p className="text-[7.5vw] font-bold leading-none">{text}</p>
+      {image && (
+        <span className="relative aspect-[4/2] h-[7.5vw] overflow-hidden rounded-full">
+          <Image src={image} alt="" fill style={{ objectFit: "cover" }} />
+        </span>
+      )}
+    </div>
+  );
+}`,
+    preview: {
+      type: "text",
+      output: `import TextParallax from "@/components/ui/text-parallax";
+
+export default function Hero() {
+  return (
+    <TextParallax
+      rows={[
+        { text: "Front End Developer", direction: "left" },
+        { text: "Creative Coder", direction: "right" },
+        { text: "Open To Work", direction: "left" },
+      ]}
+    />
+  );
+}`,
+      note: "Needs a real Next.js + Framer Motion runtime to render, so it's shown for reference rather than executed here. The vanilla JS version of this component implements the exact same scroll math with zero dependencies and has a live, in-browser preview.",
     },
   },
 ];

@@ -96,7 +96,7 @@ function copyIcon() {
 }
 
 function langAlias(language) {
-  return { javascript: "javascript", node: "javascript", tailwind: "xml" }[language] || "plaintext";
+  return { javascript: "javascript", node: "javascript", tailwind: "xml", react: "javascript" }[language] || "plaintext";
 }
 
 function escapeHTML(str) {

@@ -22,6 +22,7 @@
   --js-color: #ffab2e;
   --node-color: #00c2a8;
   --tailwind-color: #38bdf8;
+  --react-color: #38bdf8;
   --all-color: #ff5fa2;
 
   --shadow-sm: 0 2px 8px rgba(28, 23, 48, 0.06);
@@ -303,6 +304,7 @@ p { margin: 0; }
 .dot-javascript { background: var(--js-color); }
 .dot-node { background: var(--node-color); }
 .dot-tailwind { background: var(--tailwind-color); }
+.dot-react { background: var(--react-color); }
 .dot-all { background: var(--all-color); }
 
 .theme-toggle {
@@ -595,6 +597,7 @@ body.menu-open { overflow: hidden; }
 .card[data-lang="javascript"] { --card-accent: var(--js-color); }
 .card[data-lang="node"] { --card-accent: var(--node-color); }
 .card[data-lang="tailwind"] { --card-accent: var(--tailwind-color); }
+.card[data-lang="react"] { --card-accent: var(--react-color); }
 
 .card-top {
   display: flex;

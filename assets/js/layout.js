@@ -2,7 +2,7 @@
    Injected via JS on every page so markup isn't duplicated across index.html / snippet.html. */
 
 const LAYOUT = {
-  categories: ["javascript"],
+  categories: ["javascript", "react"],
 
   headerHTML(activePage) {
     return `
@@ -76,6 +76,7 @@ const LAYOUT = {
             <h4>Languages</h4>
             <ul>
               <li><a href="index.html#javascript" data-filter="javascript">JavaScript</a></li>
+              <li><a href="index.html#react" data-filter="react">React / Next.js</a></li>
             </ul>
           </div>
 

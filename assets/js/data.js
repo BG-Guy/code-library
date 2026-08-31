@@ -1068,4 +1068,171 @@ document.querySelectorAll("nav a").forEach((link) => {
 <\/script>`,
     },
   },
+  {
+    id: "hover-teaser-side-menu",
+    title: "Side Menu with Hover Image Teasers",
+    language: "javascript",
+    tags: ["animation", "navigation", "hover-effects", "menu"],
+    difficulty: "Advanced",
+    description: "A side-menu nav where hovering a link slides a full-size themed panel out from behind the menu — a preview of where that link leads before you click it.",
+    explanation: `A side-menu list where hovering a link slides a differently colored (or photographed) panel out from behind the menu — a subtle way to preview what each link leads to before you click it.
+
+**How it works**
+
+1. \`initHoverTeaserMenu\` builds the whole menu from a \`links\` array in one pass: a stack of \`.htm-teaser\` panels — one per link, each exactly as wide as the nav itself and resting fully *behind* it at \`translateX(0%)\` — plus a \`<nav>\` of \`.htm-link\` anchors rendered on top.
+2. Giving \`.htm-nav\` and \`.htm-teaser\` the same \`width: 50%\` is what makes the trick reliable: every teaser is perfectly hidden behind the nav at rest (same footprint, nav painted in front), and sliding one out by exactly \`translateX(100%)\` — its own full width — lands it precisely in the empty half of the container beside the nav, with no gap and no overlap.
+3. Each teaser panel and its matching link share the same id via \`data-teaser\`/\`data-link\`, so a hover handler can look up the *one* panel that belongs to the link being hovered — \`container.querySelector('[data-teaser="\${id}"]')\` — instead of tracking "which link is active" as separate state the way a framework component normally would.
+4. The small \`.htm-dot\` next to the hovered link fades in and nudges sideways using the exact same transition timing as the teaser panel, so both movements read as one connected animation rather than two separate effects.
+5. \`pointerleave\` removes \`is-active\` from both — because the transition lives on the base \`.htm-teaser\`/\`.htm-dot\` classes rather than only the \`.is-active\` variant, the panel slides back behind the nav with the same eased motion it came out with.
+
+Everything the component needs — layout included — lives in the one injected stylesheet, so it has no dependency on Tailwind or any other framework being present. Swap the \`color\` field for a \`backgroundImage\` per link (and use \`background-image: url(...)\` instead of the inline \`background:\`) to reveal real photos instead of solid color panels — the mechanism doesn't change at all.`,
+    code: `const STYLE_ID = "hover-teaser-menu-styles";
+
+function ensureStyles() {
+  if (document.getElementById(STYLE_ID)) return;
+
+  const style = document.createElement("style");
+  style.id = STYLE_ID;
+  style.textContent = \`
+    .htm-menu { position: relative; overflow: hidden; }
+    .htm-teaser-layer { position: absolute; inset: 0; z-index: 0; overflow: hidden; }
+
+    .htm-teaser {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 50%;
+      height: 100%;
+      transform: translateX(0%);
+      transition: transform 0.5s cubic-bezier(0.65, 0, 0.35, 1);
+    }
+    .htm-teaser.is-active { transform: translateX(100%); }
+
+    .htm-nav {
+      position: relative;
+      z-index: 10;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      gap: 1rem;
+      width: 50%;
+      height: 100%;
+    }
+    .htm-link { position: relative; display: flex; align-items: center; gap: 0.5rem; }
+    .htm-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 999px;
+      background: currentColor;
+      opacity: 0;
+      transform: translateX(0);
+      transition: opacity 0.3s ease, transform 0.3s ease;
+    }
+    .htm-link.is-active .htm-dot { opacity: 0.6; transform: translateX(10px); }
+  \`;
+  document.head.appendChild(style);
+}
+
+function initHoverTeaserMenu(container, links) {
+  ensureStyles();
+  container.classList.add("htm-menu");
+
+  container.innerHTML = \`
+    <div class="htm-teaser-layer">
+      \${links.map((l) => \`<div class="htm-teaser" data-teaser="\${l.id}" style="background:\${l.color}"></div>\`).join("")}
+    </div>
+    <nav class="htm-nav">
+      \${links
+        .map(
+          (l) => \`
+        <a href="\${l.href}" class="htm-link" data-link="\${l.id}">
+          <span>\${l.label}</span>
+          <span class="htm-dot"></span>
+        </a>\`
+        )
+        .join("")}
+    </nav>
+  \`;
+
+  container.querySelectorAll("[data-link]").forEach((link) => {
+    const id = link.dataset.link;
+    const teaser = container.querySelector(\`[data-teaser="\${id}"]\`);
+
+    link.addEventListener("pointerenter", () => {
+      link.classList.add("is-active");
+      teaser.classList.add("is-active");
+    });
+
+    link.addEventListener("pointerleave", () => {
+      link.classList.remove("is-active");
+      teaser.classList.remove("is-active");
+    });
+  });
+}
+
+// Usage — swap \`color\` for a \`backgroundImage\` to use real photos
+initHoverTeaserMenu(document.getElementById("menu"), [
+  { id: "beaches", label: "Beaches", href: "/beaches", color: "#0ea5e9" },
+  { id: "mountains", label: "Mountains", href: "/mountains", color: "#16a34a" },
+  { id: "cities", label: "Cities", href: "/cities", color: "#f59e0b" },
+]);`,
+    preview: {
+      type: "html",
+      height: 320,
+      markup: `<div class="relative mx-auto h-72 w-full max-w-md overflow-hidden rounded-xl bg-slate-900 text-white" id="menuDemo"></div>
+<script>
+  function ensureStyles() {
+    if (document.getElementById("htm-styles")) return;
+    var style = document.createElement("style");
+    style.id = "htm-styles";
+    style.textContent =
+      ".htm-teaser-layer { position: absolute; inset: 0; z-index: 0; overflow: hidden; }" +
+      ".htm-teaser { position: absolute; top: 0; left: 0; width: 50%; height: 100%; display: flex; align-items: center; justify-content: center; font-weight: 600; transform: translateX(0%); transition: transform .5s cubic-bezier(.65,0,.35,1); }" +
+      ".htm-teaser.is-active { transform: translateX(100%); }" +
+      ".htm-nav { position: relative; z-index: 10; display: flex; flex-direction: column; justify-content: center; gap: 1.25rem; width: 50%; height: 100%; padding: 0 2rem; background: rgba(15,23,42,0.95); }" +
+      ".htm-link { position: relative; display: flex; align-items: center; gap: .5rem; color: #fff; }" +
+      ".htm-dot { width: 6px; height: 6px; border-radius: 999px; background: currentColor; opacity: 0; transform: translateX(0); transition: opacity .3s ease, transform .3s ease; }" +
+      ".htm-link.is-active .htm-dot { opacity: .6; transform: translateX(10px); }";
+    document.head.appendChild(style);
+  }
+
+  function initHoverTeaserMenu(container, links) {
+    ensureStyles();
+
+    var teasersHTML = links.map(function (l) {
+      return '<div class="htm-teaser" data-teaser="' + l.id + '" style="background:' + l.color + '">' + l.label + '</div>';
+    }).join("");
+
+    var linksHTML = links.map(function (l) {
+      return '<a href="#" class="htm-link" data-link="' + l.id + '">' +
+        '<span>' + l.label + '</span><span class="htm-dot"></span></a>';
+    }).join("");
+
+    container.innerHTML =
+      '<div class="htm-teaser-layer">' + teasersHTML + '</div>' +
+      '<nav class="htm-nav">' + linksHTML + '</nav>';
+
+    container.querySelectorAll("[data-link]").forEach(function (link) {
+      var id = link.dataset.link;
+      var teaser = container.querySelector('[data-teaser="' + id + '"]');
+
+      link.addEventListener("pointerenter", function () {
+        link.classList.add("is-active");
+        teaser.classList.add("is-active");
+      });
+      link.addEventListener("pointerleave", function () {
+        link.classList.remove("is-active");
+        teaser.classList.remove("is-active");
+      });
+    });
+  }
+
+  initHoverTeaserMenu(document.getElementById("menuDemo"), [
+    { id: "beaches", label: "Beaches", color: "linear-gradient(135deg,#0ea5e9,#0369a1)" },
+    { id: "mountains", label: "Mountains", color: "linear-gradient(135deg,#22c55e,#15803d)" },
+    { id: "cities", label: "Cities", color: "linear-gradient(135deg,#f59e0b,#b45309)" }
+  ]);
+<\/script>`,
+    },
+  },
 ];

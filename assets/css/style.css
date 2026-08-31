@@ -483,8 +483,10 @@ body.menu-open { overflow: hidden; }
   transform-origin: left;
   transition: transform 0.35s ease;
 }
-.card:hover::before { transform: scaleX(1); }
-.card:hover {
+.card:hover::before,
+.card.is-focused::before { transform: scaleX(1); }
+.card:hover,
+.card.is-focused {
   transform: translateY(-6px);
   box-shadow: var(--shadow-md);
   border-color: transparent;
@@ -540,7 +542,8 @@ body.menu-open { overflow: hidden; }
   width: 16px; height: 16px;
   transition: transform 0.25s ease;
 }
-.card:hover .card-footer svg { transform: translateX(4px); }
+.card:hover .card-footer svg,
+.card.is-focused .card-footer svg { transform: translateX(4px); }
 
 .empty-state {
   text-align: center;

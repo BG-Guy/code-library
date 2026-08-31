@@ -2,7 +2,7 @@
    Injected via JS on every page so markup isn't duplicated across index.html / snippet.html. */
 
 const LAYOUT = {
-  categories: ["javascript", "node", "tailwind"],
+  categories: ["javascript"],
 
   headerHTML(activePage) {
     return `
@@ -69,15 +69,13 @@ const LAYOUT = {
           <div class="footer-brand">
             <span class="logo-mark">&lt;/&gt;</span>
             <span class="logo-text">Code<em>Library</em></span>
-            <p>A small, growing shelf of full-stack web snippets — click any card to read, copy, and understand it.</p>
+            <p>A small, growing shelf of vanilla JavaScript snippets — click any card to read, copy, and understand it.</p>
           </div>
 
           <div class="footer-col">
             <h4>Languages</h4>
             <ul>
               <li><a href="index.html#javascript" data-filter="javascript">JavaScript</a></li>
-              <li><a href="index.html#node" data-filter="node">Node.js</a></li>
-              <li><a href="index.html#tailwind" data-filter="tailwind">Tailwind CSS</a></li>
             </ul>
           </div>
 

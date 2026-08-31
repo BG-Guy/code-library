@@ -916,4 +916,156 @@ link.addEventListener("click", (e) => {
 <\/script>`,
     },
   },
+  {
+    id: "hover-carousel-nav-link",
+    title: "Hover Carousel Nav Link",
+    language: "javascript",
+    tags: ["animation", "navigation", "hover-effects", "dom"],
+    difficulty: "Intermediate",
+    description: "Turn any nav link into a two-line 'carousel' that rolls a duplicate label in on hover, with a dot-to-bar underline animating underneath — wire up an entire nav bar with one function call per link.",
+    explanation: `A common portfolio-site nav effect: hovering a link makes its label appear to scroll away while an identical copy scrolls in from the opposite edge, with a thin underline growing in from a centered dot. Building this by hand normally means duplicating markup per link — this version does it for you from a single function call.
+
+**How it works**
+
+1. \`initHoverCarouselLink\` takes a plain link element, remembers its existing content, then rebuilds the link's \`innerHTML\` around a small internal structure: a clipped \`.hc-viewport\`, a \`.hc-track\` holding two identical copies of that content stacked along the chosen \`direction\`, and an \`.hc-underline\` span.
+2. Stacking two copies inside a track that's twice the viewport's size, then clipping the viewport with \`overflow: hidden\`, is what makes the "carousel" illusion possible — only one copy is ever visible at a time, and sliding the track by exactly half its own size swaps which copy shows.
+3. On \`pointerenter\`, the track's \`transform\` moves to \`translateY(-50%)\` (or \`translateX(-50%)\` for direction \`"x"\`) — a CSS \`transition\` on \`transform\` animates that shift smoothly, sliding the first copy out one edge exactly as the second, identical copy slides in from the other.
+4. \`pointerleave\` simply clears the inline transform, snapping back to the resting position — because both copies are identical, that instant reset is invisible to the eye, so the *next* hover always starts clean.
+5. The underline is a separate span whose \`is-active\` class toggles several properties at once — \`width\`, \`height\`, \`border-radius\`, \`left\`, and \`opacity\` — each with its own CSS transition, so a small centered dot smoothly grows into a full-width bar and fades in on hover, then reverses back to a dot on hover-out.
+
+Because everything is scoped through a handful of \`hc-*\` classes and one initializer function, wiring this into a whole nav bar is a one-liner per link — no markup duplication required at the call site.`,
+    code: `const STYLE_ID = "hover-carousel-link-styles";
+
+function ensureStyles() {
+  if (document.getElementById(STYLE_ID)) return;
+
+  const style = document.createElement("style");
+  style.id = STYLE_ID;
+  style.textContent = \`
+    .hc-link { position: relative; display: inline-flex; cursor: pointer; }
+    .hc-viewport { overflow: hidden; display: inline-block; height: 1.25em; line-height: 1.25em; }
+    .hc-track {
+      display: flex;
+      height: 200%;
+      transition: transform 0.4s cubic-bezier(0.65, 0, 0.35, 1);
+    }
+    .hc-track--y { flex-direction: column; }
+    .hc-track--x { flex-direction: row; width: 200%; height: 100%; }
+    .hc-copy { display: flex; flex: 1 0 50%; align-items: center; justify-content: center; }
+
+    .hc-underline {
+      position: absolute;
+      left: 50%;
+      bottom: -6px;
+      width: 4px;
+      height: 4px;
+      border-radius: 999px;
+      opacity: 0;
+      transform: translateX(-50%);
+      transition:
+        width 0.25s cubic-bezier(0.6, 0.05, 0.15, 0.95),
+        height 0.25s ease,
+        border-radius 0.25s ease,
+        left 0.25s ease,
+        opacity 0.25s ease;
+    }
+    .hc-underline.is-active {
+      left: 0;
+      width: 100%;
+      height: 2px;
+      border-radius: 0;
+      opacity: 1;
+      transform: translateX(0);
+    }
+  \`;
+  document.head.appendChild(style);
+}
+
+function initHoverCarouselLink(link, { direction = "y", color = "currentColor" } = {}) {
+  ensureStyles();
+
+  const original = link.innerHTML;
+  link.classList.add("hc-link");
+  link.innerHTML = \`
+    <span class="hc-viewport">
+      <span class="hc-track hc-track--\${direction}">
+        <span class="hc-copy">\${original}</span>
+        <span class="hc-copy">\${original}</span>
+      </span>
+    </span>
+    <span class="hc-underline" style="background:\${color}"></span>
+  \`;
+
+  const track = link.querySelector(".hc-track");
+  const underline = link.querySelector(".hc-underline");
+  const shift = direction === "y" ? "translateY(-50%)" : "translateX(-50%)";
+
+  link.addEventListener("pointerenter", () => {
+    track.style.transform = shift;
+    underline.classList.add("is-active");
+  });
+
+  link.addEventListener("pointerleave", () => {
+    track.style.transform = "";
+    underline.classList.remove("is-active");
+  });
+}
+
+// Usage — wire up every link in a nav bar in one line
+document.querySelectorAll("nav a").forEach((link) => {
+  initHoverCarouselLink(link, { direction: "y", color: "#4f46e5" });
+});`,
+    preview: {
+      type: "html",
+      height: 150,
+      markup: `<nav class="flex items-center justify-center gap-8 p-10" id="demoNav">
+  <a href="#" class="text-sm font-semibold text-slate-800">Home</a>
+  <a href="#" class="text-sm font-semibold text-slate-800">Work</a>
+  <a href="#" class="text-sm font-semibold text-slate-800">Contact</a>
+</nav>
+<script>
+  function ensureStyles() {
+    if (document.getElementById("hc-styles")) return;
+    var style = document.createElement("style");
+    style.id = "hc-styles";
+    style.textContent =
+      ".hc-link { position: relative; display: inline-flex; cursor: pointer; }" +
+      ".hc-viewport { overflow: hidden; display: inline-block; height: 1.25em; line-height: 1.25em; }" +
+      ".hc-track { display: flex; flex-direction: column; height: 200%; transition: transform 0.4s cubic-bezier(0.65,0,0.35,1); }" +
+      ".hc-copy { display: flex; flex: 1 0 50%; align-items: center; justify-content: center; }" +
+      ".hc-underline { position: absolute; left: 50%; bottom: -6px; width: 4px; height: 4px; border-radius: 999px; opacity: 0; transform: translateX(-50%); transition: width .25s cubic-bezier(.6,.05,.15,.95), height .25s ease, border-radius .25s ease, left .25s ease, opacity .25s ease; }" +
+      ".hc-underline.is-active { left: 0; width: 100%; height: 2px; border-radius: 0; opacity: 1; transform: translateX(0); }";
+    document.head.appendChild(style);
+  }
+
+  function initHoverCarouselLink(link, color) {
+    ensureStyles();
+    var original = link.innerHTML;
+    link.classList.add("hc-link");
+    link.innerHTML =
+      '<span class="hc-viewport"><span class="hc-track">' +
+      '<span class="hc-copy">' + original + '</span>' +
+      '<span class="hc-copy">' + original + '</span>' +
+      '</span></span>' +
+      '<span class="hc-underline" style="background:' + color + '"></span>';
+
+    var track = link.querySelector(".hc-track");
+    var underline = link.querySelector(".hc-underline");
+
+    link.addEventListener("pointerenter", function () {
+      track.style.transform = "translateY(-50%)";
+      underline.classList.add("is-active");
+    });
+    link.addEventListener("pointerleave", function () {
+      track.style.transform = "";
+      underline.classList.remove("is-active");
+    });
+  }
+
+  document.querySelectorAll("#demoNav a").forEach(function (link) {
+    initHoverCarouselLink(link, "#4f46e5");
+  });
+<\/script>`,
+    },
+  },
 ];

@@ -1112,10 +1112,13 @@ document.querySelectorAll("nav a").forEach((link) => {
     });
 
     link.addEventListener("click", function (e) {
+      // This demo's links have nowhere real to go, so every tap is
+      // intercepted — a real project would drop this preventDefault on
+      // the second tap and let the click become a real navigation.
+      e.preventDefault();
       if (lastPointerType !== "touch") return;
 
       if (!isPrimed) {
-        e.preventDefault();
         enter();
         isPrimed = true;
       } else {
@@ -1352,6 +1355,10 @@ initHoverTeaserMenu(document.getElementById("menu"), [
       });
 
       link.addEventListener("click", function (e) {
+        // This demo's links have nowhere real to go, so every tap is
+        // intercepted — a real project would drop this preventDefault on
+        // the second tap and let the click become a real navigation.
+        e.preventDefault();
         if (lastPointerType !== "touch") return;
 
         if (primed && primed.link !== link) {
@@ -1359,7 +1366,6 @@ initHoverTeaserMenu(document.getElementById("menu"), [
           primed = null;
         }
         if (!primed) {
-          e.preventDefault();
           enter();
           primed = { link: link, leave: leave };
         } else {
@@ -1382,6 +1388,216 @@ initHoverTeaserMenu(document.getElementById("menu"), [
     { id: "mountains", label: "Mountains", color: "linear-gradient(135deg,#22c55e,#15803d)" },
     { id: "cities", label: "Cities", color: "linear-gradient(135deg,#f59e0b,#b45309)" }
   ]);
+<\/script>`,
+    },
+  },
+  {
+    id: "dot-to-underline-link",
+    title: "Dot-to-Underline Hover Link",
+    language: "javascript",
+    tags: ["animation", "navigation", "hover-effects", "web-animations-api"],
+    difficulty: "Intermediate",
+    description: "A small dot beneath a nav link fades in, then stretches into a full underline bar on hover — and mirrors the whole thing in reverse on the way out.",
+    explanation: `A tiny dot appears below the link, then stretches out into a flat underline bar — two distinct beats rather than one blended transition, which is what gives this effect its snap.
+
+**How it works**
+
+1. \`initDotUnderline\` appends one small \`.du-dot\` span to the link and drives its geometry entirely through the Web Animations API (\`element.animate()\`) rather than a CSS transition, because the effect genuinely has two sequential phases rather than several properties changing together.
+2. \`grow()\` first fades the dot in (\`opacity 0 → 1\`) and, only once that animation's \`.finished\` promise resolves, *then* stretches it from a small centered circle into a full-width, flat bar. That sequencing — fade first, stretch second — is what gives the effect its two-beat feel instead of everything happening in one blur.
+3. \`shrink()\` runs the same two steps in reverse: the bar contracts back down into a dot first, and only once *that* finishes does it fade away — so hovering off always undoes the animation as a mirror image of hovering on.
+4. Calling \`.cancel()\` on whatever animation is still running before starting a new one means rapidly hovering on and off doesn't queue up a stack of animations — each new \`grow()\`/\`shrink()\` call cleanly takes over from wherever the dot currently is, instead of waiting for a stale one to finish first.
+5. Touch handling matches the same pattern used elsewhere in this library: the \`pointerType\` recorded on \`pointerdown\` decides whether a click activates immediately (mouse — real hover already showed the effect) or needs a first "priming" tap (touch) before a second tap lets the navigation through.
+
+Because the whole thing is one small span and one initializer function, wiring it into a nav bar — with or without another hover effect layered on top — is a single \`querySelectorAll\` + \`forEach\` away.`,
+    code: `function initDotUnderline(link, { color = "currentColor" } = {}) {
+  link.style.position = "relative";
+
+  const dot = document.createElement("span");
+  dot.className = "du-dot";
+  dot.style.background = color;
+  link.appendChild(dot);
+
+  let currentAnimation = null;
+
+  async function grow() {
+    currentAnimation?.cancel();
+    currentAnimation = dot.animate(
+      [{ opacity: 0 }, { opacity: 1 }],
+      { duration: 150, easing: "ease-out", fill: "forwards" }
+    );
+    await currentAnimation.finished;
+
+    currentAnimation = dot.animate(
+      [
+        { width: "6px", height: "6px", left: "calc(50% - 3px)", borderRadius: "999px" },
+        { width: "100%", height: "2px", left: "0%", borderRadius: "0px" },
+      ],
+      { duration: 200, easing: "ease-in-out", fill: "forwards" }
+    );
+  }
+
+  async function shrink() {
+    currentAnimation?.cancel();
+    currentAnimation = dot.animate(
+      [
+        { width: "100%", height: "2px", left: "0%", borderRadius: "0px" },
+        { width: "6px", height: "6px", left: "calc(50% - 3px)", borderRadius: "999px" },
+      ],
+      { duration: 200, easing: "ease-in-out", fill: "forwards" }
+    );
+    await currentAnimation.finished;
+
+    currentAnimation = dot.animate(
+      [{ opacity: 1 }, { opacity: 0 }],
+      { duration: 150, easing: "ease-out", fill: "forwards" }
+    );
+  }
+
+  // Detect per-interaction, not per-device: a mouse click already had a real
+  // hover before it, so it can activate immediately. A touch tap gets primed
+  // first and only activates on a second tap of the same link.
+  let lastPointerType = "mouse";
+  let isPrimed = false;
+
+  link.addEventListener("pointerdown", (e) => {
+    lastPointerType = e.pointerType;
+  });
+  link.addEventListener("pointerenter", (e) => {
+    if (e.pointerType === "mouse") grow();
+  });
+  link.addEventListener("pointerleave", (e) => {
+    if (e.pointerType === "mouse") shrink();
+  });
+
+  link.addEventListener("click", (e) => {
+    if (lastPointerType !== "touch") return;
+
+    if (!isPrimed) {
+      e.preventDefault();
+      grow();
+      isPrimed = true;
+    } else {
+      shrink();
+      isPrimed = false;
+    }
+  });
+
+  document.addEventListener("click", (e) => {
+    if (isPrimed && !link.contains(e.target)) {
+      shrink();
+      isPrimed = false;
+    }
+  });
+}
+
+// Usage — wire up every link in a nav bar in one line
+document.querySelectorAll("nav a").forEach((link) => {
+  initDotUnderline(link, { color: "#4f46e5" });
+});`,
+    preview: {
+      type: "html",
+      height: 150,
+      markup: `<nav class="flex items-center justify-center gap-10 p-10" id="demoNav">
+  <a href="#" class="text-sm font-semibold text-slate-800">Home</a>
+  <a href="#" class="text-sm font-semibold text-slate-800">Work</a>
+  <a href="#" class="text-sm font-semibold text-slate-800">Contact</a>
+</nav>
+<style>
+  #demoNav a { position: relative; }
+  .du-dot {
+    position: absolute;
+    bottom: -6px;
+    left: calc(50% - 3px);
+    width: 6px;
+    height: 6px;
+    border-radius: 999px;
+    opacity: 0;
+    pointer-events: none;
+    background: #4f46e5;
+  }
+</style>
+<script>
+  function initDotUnderline(link) {
+    var dot = document.createElement("span");
+    dot.className = "du-dot";
+    link.appendChild(dot);
+
+    var currentAnimation = null;
+
+    function grow() {
+      if (currentAnimation) currentAnimation.cancel();
+      currentAnimation = dot.animate(
+        [{ opacity: 0 }, { opacity: 1 }],
+        { duration: 150, easing: "ease-out", fill: "forwards" }
+      );
+      currentAnimation.finished.then(function () {
+        currentAnimation = dot.animate(
+          [
+            { width: "6px", height: "6px", left: "calc(50% - 3px)", borderRadius: "999px" },
+            { width: "100%", height: "2px", left: "0%", borderRadius: "0px" }
+          ],
+          { duration: 200, easing: "ease-in-out", fill: "forwards" }
+        );
+      }).catch(function () {});
+    }
+
+    function shrink() {
+      if (currentAnimation) currentAnimation.cancel();
+      currentAnimation = dot.animate(
+        [
+          { width: "100%", height: "2px", left: "0%", borderRadius: "0px" },
+          { width: "6px", height: "6px", left: "calc(50% - 3px)", borderRadius: "999px" }
+        ],
+        { duration: 200, easing: "ease-in-out", fill: "forwards" }
+      );
+      currentAnimation.finished.then(function () {
+        currentAnimation = dot.animate(
+          [{ opacity: 1 }, { opacity: 0 }],
+          { duration: 150, easing: "ease-out", fill: "forwards" }
+        );
+      }).catch(function () {});
+    }
+
+    var lastPointerType = "mouse";
+    var isPrimed = false;
+
+    link.addEventListener("pointerdown", function (e) {
+      lastPointerType = e.pointerType;
+    });
+    link.addEventListener("pointerenter", function (e) {
+      if (e.pointerType === "mouse") grow();
+    });
+    link.addEventListener("pointerleave", function (e) {
+      if (e.pointerType === "mouse") shrink();
+    });
+
+    link.addEventListener("click", function (e) {
+      // This demo's links have nowhere real to go, so every tap is
+      // intercepted — a real project would drop this preventDefault on
+      // the second tap and let the click become a real navigation.
+      e.preventDefault();
+      if (lastPointerType !== "touch") return;
+
+      if (!isPrimed) {
+        grow();
+        isPrimed = true;
+      } else {
+        shrink();
+        isPrimed = false;
+      }
+    });
+
+    document.addEventListener("click", function (e) {
+      if (isPrimed && !link.contains(e.target)) {
+        shrink();
+        isPrimed = false;
+      }
+    });
+  }
+
+  document.querySelectorAll("#demoNav a").forEach(function (link) {
+    initDotUnderline(link);
+  });
 <\/script>`,
     },
   },

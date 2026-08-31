@@ -331,12 +331,6 @@ function renderRelated(current) {
 
   relatedGrid.querySelectorAll(".card").forEach((card) => {
     const go = () => (window.location.href = `snippet.html?id=${card.dataset.id}`);
-    card.addEventListener("click", go);
-    card.addEventListener("keydown", (e) => {
-      if (e.key === "Enter" || e.key === " ") {
-        e.preventDefault();
-        go();
-      }
-    });
+    CardTap.wire(card, go);
   });
 }

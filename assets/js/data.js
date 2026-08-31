@@ -932,7 +932,7 @@ link.addEventListener("click", (e) => {
 3. On \`pointerenter\`, the track's \`transform\` moves to \`translateY(-50%)\` (or \`translateX(-50%)\` for direction \`"x"\`) — a CSS \`transition\` on \`transform\` animates that shift smoothly, sliding the first copy out one edge exactly as the second, identical copy slides in from the other.
 4. \`pointerleave\` simply clears the inline transform, snapping back to the resting position — because both copies are identical, that instant reset is invisible to the eye, so the *next* hover always starts clean.
 5. The underline is a separate span whose \`is-active\` class toggles several properties at once — \`width\`, \`height\`, \`border-radius\`, \`left\`, and \`opacity\` — each with its own CSS transition, so a small centered dot smoothly grows into a full-width bar and fades in on hover, then reverses back to a dot on hover-out.
-6. Touch devices have no \`pointerenter\`/\`pointerleave\` to speak of, so \`initHoverCarouselLink\` checks \`matchMedia("(hover: none)")\` once and switches strategy entirely: the *first* tap calls \`preventDefault()\` and just plays the hover animation, "priming" the link; a *second* tap on that same link lets the click go through as a real navigation. Tapping anywhere else resets whichever link was primed back to its resting state first.
+6. Touch devices have no \`pointerenter\`/\`pointerleave\` to speak of, so \`initHoverCarouselLink\` doesn't guess from the device type — it checks the \`pointerType\` of whatever triggered *this* interaction, recorded on \`pointerdown\`. A \`"mouse"\` click fires \`activate\` immediately, since real hover is already showing by the time a mouse click lands; a \`"touch"\` tap is intercepted instead: the *first* one calls \`preventDefault()\` and just plays the hover animation, "priming" the link, and a *second* tap on that same link lets the click go through as a real navigation. Checking per-interaction rather than once via \`matchMedia\` keeps this correct even on hybrid devices — a touchscreen laptop with a trackpad, say — where the device supports both.
 
 Because everything is scoped through a handful of \`hc-*\` classes and one initializer function, wiring this into a whole nav bar is a one-liner per link — no markup duplication required at the call site.`,
     code: `const STYLE_ID = "hover-carousel-link-styles";
@@ -1010,32 +1010,42 @@ function initHoverCarouselLink(link, { direction = "y", color = "currentColor" }
     underline.classList.remove("is-active");
   };
 
-  if (window.matchMedia("(hover: none)").matches) {
-    // No real hover on touch: the first tap previews the effect, a second
-    // tap on the same link lets the click through as a real navigation.
-    let isPrimed = false;
+  // Detect per-interaction, not per-device: a mouse click already had a real
+  // hover before it, so it can activate immediately. A touch tap gets primed
+  // first and only activates on a second tap of the same link.
+  let lastPointerType = "mouse";
+  let isPrimed = false;
 
-    link.addEventListener("click", (e) => {
-      if (!isPrimed) {
-        e.preventDefault();
-        enter();
-        isPrimed = true;
-      } else {
-        leave();
-        isPrimed = false;
-      }
-    });
+  link.addEventListener("pointerdown", (e) => {
+    lastPointerType = e.pointerType;
+  });
 
-    document.addEventListener("click", (e) => {
-      if (isPrimed && !link.contains(e.target)) {
-        leave();
-        isPrimed = false;
-      }
-    });
-  } else {
-    link.addEventListener("pointerenter", enter);
-    link.addEventListener("pointerleave", leave);
-  }
+  link.addEventListener("pointerenter", (e) => {
+    if (e.pointerType === "mouse") enter();
+  });
+  link.addEventListener("pointerleave", (e) => {
+    if (e.pointerType === "mouse") leave();
+  });
+
+  link.addEventListener("click", (e) => {
+    if (lastPointerType !== "touch") return;
+
+    if (!isPrimed) {
+      e.preventDefault();
+      enter();
+      isPrimed = true;
+    } else {
+      leave();
+      isPrimed = false;
+    }
+  });
+
+  document.addEventListener("click", (e) => {
+    if (isPrimed && !link.contains(e.target)) {
+      leave();
+      isPrimed = false;
+    }
+  });
 }
 
 // Usage — wire up every link in a nav bar in one line
@@ -1088,28 +1098,38 @@ document.querySelectorAll("nav a").forEach((link) => {
       underline.classList.remove("is-active");
     }
 
-    if (window.matchMedia("(hover: none)").matches) {
-      var isPrimed = false;
-      link.addEventListener("click", function (e) {
-        if (!isPrimed) {
-          e.preventDefault();
-          enter();
-          isPrimed = true;
-        } else {
-          leave();
-          isPrimed = false;
-        }
-      });
-      document.addEventListener("click", function (e) {
-        if (isPrimed && !link.contains(e.target)) {
-          leave();
-          isPrimed = false;
-        }
-      });
-    } else {
-      link.addEventListener("pointerenter", enter);
-      link.addEventListener("pointerleave", leave);
-    }
+    var lastPointerType = "mouse";
+    var isPrimed = false;
+
+    link.addEventListener("pointerdown", function (e) {
+      lastPointerType = e.pointerType;
+    });
+    link.addEventListener("pointerenter", function (e) {
+      if (e.pointerType === "mouse") enter();
+    });
+    link.addEventListener("pointerleave", function (e) {
+      if (e.pointerType === "mouse") leave();
+    });
+
+    link.addEventListener("click", function (e) {
+      if (lastPointerType !== "touch") return;
+
+      if (!isPrimed) {
+        e.preventDefault();
+        enter();
+        isPrimed = true;
+      } else {
+        leave();
+        isPrimed = false;
+      }
+    });
+
+    document.addEventListener("click", function (e) {
+      if (isPrimed && !link.contains(e.target)) {
+        leave();
+        isPrimed = false;
+      }
+    });
   }
 
   document.querySelectorAll("#demoNav a").forEach(function (link) {
@@ -1134,7 +1154,7 @@ document.querySelectorAll("nav a").forEach((link) => {
 3. Each teaser panel and its matching link share the same id via \`data-teaser\`/\`data-link\`, so a hover handler can look up the *one* panel that belongs to the link being hovered — \`container.querySelector('[data-teaser="\${id}"]')\` — instead of tracking "which link is active" as separate state the way a framework component normally would.
 4. The small \`.htm-dot\` next to the hovered link fades in and nudges sideways using the exact same transition timing as the teaser panel, so both movements read as one connected animation rather than two separate effects.
 5. \`pointerleave\` removes \`is-active\` from both — because the transition lives on the base \`.htm-teaser\`/\`.htm-dot\` classes rather than only the \`.is-active\` variant, the panel slides back behind the nav with the same eased motion it came out with.
-6. On touch devices — detected once via \`matchMedia("(hover: none)")\` — there's no hover to drive any of this, so each link's \`click\` is intercepted instead: the first tap calls \`preventDefault()\` and just reveals that link's teaser, "priming" it; a second tap on the same (already-primed) link lets the click through as a real navigation. A single \`primedLink\` variable shared across the whole menu makes sure tapping a different link — or tapping anywhere outside the menu — resets whichever one was previously primed first.
+6. Each link also tracks the \`pointerType\` of its own \`pointerdown\` rather than asking the device once via \`matchMedia\`: a \`"mouse"\` click fires normally (real hover already showed the teaser by then), but a \`"touch"\` tap is intercepted — the first one calls \`preventDefault()\` and just reveals that link's teaser, "priming" it, and a second tap on the same (already-primed) link lets the click through as a real navigation. A single \`primed\` variable shared across the whole menu makes sure tapping a different link — or tapping anywhere outside the menu — resets whichever one was previously primed first. Checking per-interaction like this keeps the behavior correct even on hybrid devices that report both touch and mouse capability.
 
 Everything the component needs — layout included — lives in the one injected stylesheet, so it has no dependency on Tailwind or any other framework being present. Swap the \`color\` field for a \`backgroundImage\` per link (and use \`background-image: url(...)\` instead of the inline \`background:\`) to reveal real photos instead of solid color panels — the mechanism doesn't change at all.`,
     code: `const STYLE_ID = "hover-teaser-menu-styles";
@@ -1205,7 +1225,6 @@ function initHoverTeaserMenu(container, links) {
     </nav>
   \`;
 
-  const isTouchDevice = window.matchMedia("(hover: none)").matches;
   let primed = null; // { link, leave } of whichever link is currently tap-primed
 
   container.querySelectorAll("[data-link]").forEach((link) => {
@@ -1221,38 +1240,47 @@ function initHoverTeaserMenu(container, links) {
       teaser.classList.remove("is-active");
     };
 
-    if (isTouchDevice) {
-      // No real hover on touch: the first tap previews the teaser, a
-      // second tap on that same link lets the click through as a real nav.
-      link.addEventListener("click", (e) => {
-        if (primed && primed.link !== link) {
-          primed.leave();
-          primed = null;
-        }
+    // Detect per-interaction, not per-device: a mouse click already had a
+    // real hover before it, so it can activate immediately. A touch tap
+    // gets primed first and only activates on a second tap of that link.
+    let lastPointerType = "mouse";
 
-        if (!primed) {
-          e.preventDefault();
-          enter();
-          primed = { link, leave };
-        } else {
-          leave();
-          primed = null;
-        }
-      });
-    } else {
-      link.addEventListener("pointerenter", enter);
-      link.addEventListener("pointerleave", leave);
-    }
-  });
+    link.addEventListener("pointerdown", (e) => {
+      lastPointerType = e.pointerType;
+    });
 
-  if (isTouchDevice) {
-    document.addEventListener("click", (e) => {
-      if (primed && !container.contains(e.target)) {
+    link.addEventListener("pointerenter", (e) => {
+      if (e.pointerType === "mouse") enter();
+    });
+    link.addEventListener("pointerleave", (e) => {
+      if (e.pointerType === "mouse") leave();
+    });
+
+    link.addEventListener("click", (e) => {
+      if (lastPointerType !== "touch") return;
+
+      if (primed && primed.link !== link) {
         primed.leave();
         primed = null;
       }
+
+      if (!primed) {
+        e.preventDefault();
+        enter();
+        primed = { link, leave };
+      } else {
+        leave();
+        primed = null;
+      }
     });
-  }
+  });
+
+  document.addEventListener("click", (e) => {
+    if (primed && !container.contains(e.target)) {
+      primed.leave();
+      primed = null;
+    }
+  });
 }
 
 // Usage — swap \`color\` for a \`backgroundImage\` to use real photos
@@ -1297,12 +1325,12 @@ initHoverTeaserMenu(document.getElementById("menu"), [
       '<div class="htm-teaser-layer">' + teasersHTML + '</div>' +
       '<nav class="htm-nav">' + linksHTML + '</nav>';
 
-    var isTouchDevice = window.matchMedia("(hover: none)").matches;
     var primed = null;
 
     container.querySelectorAll("[data-link]").forEach(function (link) {
       var id = link.dataset.link;
       var teaser = container.querySelector('[data-teaser="' + id + '"]');
+      var lastPointerType = "mouse";
 
       function enter() {
         link.classList.add("is-active");
@@ -1313,35 +1341,40 @@ initHoverTeaserMenu(document.getElementById("menu"), [
         teaser.classList.remove("is-active");
       }
 
-      if (isTouchDevice) {
-        link.addEventListener("click", function (e) {
-          if (primed && primed.link !== link) {
-            primed.leave();
-            primed = null;
-          }
-          if (!primed) {
-            e.preventDefault();
-            enter();
-            primed = { link: link, leave: leave };
-          } else {
-            leave();
-            primed = null;
-          }
-        });
-      } else {
-        link.addEventListener("pointerenter", enter);
-        link.addEventListener("pointerleave", leave);
-      }
-    });
+      link.addEventListener("pointerdown", function (e) {
+        lastPointerType = e.pointerType;
+      });
+      link.addEventListener("pointerenter", function (e) {
+        if (e.pointerType === "mouse") enter();
+      });
+      link.addEventListener("pointerleave", function (e) {
+        if (e.pointerType === "mouse") leave();
+      });
 
-    if (isTouchDevice) {
-      document.addEventListener("click", function (e) {
-        if (primed && !container.contains(e.target)) {
+      link.addEventListener("click", function (e) {
+        if (lastPointerType !== "touch") return;
+
+        if (primed && primed.link !== link) {
           primed.leave();
           primed = null;
         }
+        if (!primed) {
+          e.preventDefault();
+          enter();
+          primed = { link: link, leave: leave };
+        } else {
+          leave();
+          primed = null;
+        }
       });
-    }
+    });
+
+    document.addEventListener("click", function (e) {
+      if (primed && !container.contains(e.target)) {
+        primed.leave();
+        primed = null;
+      }
+    });
   }
 
   initHoverTeaserMenu(document.getElementById("menuDemo"), [

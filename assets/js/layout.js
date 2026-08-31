@@ -181,3 +181,58 @@ const LAYOUT = {
   const stored = localStorage.getItem("cl-theme");
   if (stored === "dark") document.documentElement.setAttribute("data-theme", "dark");
 })();
+
+/* Shared by main.js (home grid) and snippet.js (related-snippet cards):
+   wires a card so a real mouse click navigates immediately (the hover state
+   is already showing by the time a mouse user clicks), while a touch tap
+   first "primes" the card — showing its hover look without navigating —
+   and only a second tap on that same card follows through. Detection is
+   per-interaction (via the pointerType on `pointerdown`), not a static
+   device check, so it stays correct on hybrid devices with both touch and
+   a mouse/trackpad. */
+const CardTap = {
+  primed: null,
+
+  wire(card, activate) {
+    let lastPointerType = "mouse";
+
+    card.addEventListener("pointerdown", (e) => {
+      lastPointerType = e.pointerType;
+    });
+
+    card.addEventListener("click", () => {
+      if (lastPointerType !== "touch") {
+        activate();
+        return;
+      }
+
+      if (CardTap.primed === card) {
+        CardTap.primed = null;
+        activate();
+        return;
+      }
+
+      if (CardTap.primed) CardTap.primed.classList.remove("is-focused");
+      card.classList.add("is-focused");
+      CardTap.primed = card;
+    });
+
+    card.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        activate();
+      }
+    });
+  },
+};
+
+document.addEventListener(
+  "click",
+  (e) => {
+    if (CardTap.primed && !CardTap.primed.contains(e.target)) {
+      CardTap.primed.classList.remove("is-focused");
+      CardTap.primed = null;
+    }
+  },
+  true
+);

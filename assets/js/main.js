@@ -64,16 +64,8 @@ document.addEventListener("DOMContentLoaded", () => {
       revealObserver.observe(card);
 
       const go = () => (window.location.href = `snippet.html?id=${card.dataset.id}`);
-      card.addEventListener("click", go);
-      card.addEventListener("keydown", (e) => {
-        if (e.key === "Enter" || e.key === " ") {
-          e.preventDefault();
-          go();
-        }
-      });
+      CardTap.wire(card, go);
     });
-
-    updateFocusedCard();
   }
 
   // ---------- tag cloud (built from the data, so it never goes stale) ----------
@@ -131,50 +123,6 @@ document.addEventListener("DOMContentLoaded", () => {
     updateFiltersCount();
     render();
   });
-
-  // Touch devices have no real ":hover" — instead, treat scroll position as
-  // "aim": whichever card sits nearest the screen's vertical center gets the
-  // same lift/shadow/border treatment a mouse hover would give it.
-  const isTouchDevice = window.matchMedia("(hover: none) and (pointer: coarse)").matches;
-  let focusTicking = false;
-
-  function updateFocusedCard() {
-    if (!isTouchDevice) return;
-
-    const cards = grid.querySelectorAll(".card");
-    const viewportCenter = window.innerHeight / 2;
-    let closest = null;
-    let closestDistance = Infinity;
-
-    cards.forEach((card) => {
-      card.classList.remove("is-focused");
-      const rect = card.getBoundingClientRect();
-      if (rect.bottom <= 0 || rect.top >= window.innerHeight) return;
-
-      const distance = Math.abs(rect.top + rect.height / 2 - viewportCenter);
-      if (distance < closestDistance) {
-        closestDistance = distance;
-        closest = card;
-      }
-    });
-
-    if (closest) closest.classList.add("is-focused");
-  }
-
-  if (isTouchDevice) {
-    window.addEventListener(
-      "scroll",
-      () => {
-        if (focusTicking) return;
-        focusTicking = true;
-        requestAnimationFrame(() => {
-          updateFocusedCard();
-          focusTicking = false;
-        });
-      },
-      { passive: true }
-    );
-  }
 
   const revealObserver = new IntersectionObserver(
     (entries) => {

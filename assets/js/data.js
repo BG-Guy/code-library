@@ -1251,7 +1251,7 @@ export default function Hero() {
 1. \`hitTest(x, y)\` walks the target list and returns whichever one's \`getBoundingClientRect()\` currently contains the point — this replaces relying on native \`mouseenter\`/\`mouseleave\`, which only fires for a real OS pointer. Doing the hit test manually on every position update is what lets the exact same code path drive both a real mouse and the simulated touch pointer below.
 2. When a target is active, \`dist\` is the vector from that target's center to the pointer. \`Math.atan2(dist.y, dist.x)\` becomes the cursor's rotation, and the larger \`abs(dist)\` gets, the more the cursor stretches along one axis and squashes along the other — capped at 1.3x/0.8x so it never overshoots into something rubbery-looking.
 3. The cursor doesn't jump straight to the target's center — \`targetX\`/\`targetY\` blend 90% center, 10% actual pointer position, so it visibly "pulls" toward wherever you are inside the element rather than looking dead-center-locked.
-4. \`smooth.x\`/\`smooth.y\` are eased toward that target position by a fraction (\`ease\`) every animation frame instead of being set directly — a cheap stand-in for a spring that's close enough for this effect without pulling in an animation library.
+4. \`springStep\` is a tiny mass-free spring: each frame it nudges a velocity toward the target (\`stiffness\`) and bleeds some of that velocity off (\`friction\`), then moves the position by whatever's left. Driving \`smooth.x\`/\`smooth.y\` *and* the cursor's size through it — instead of jumping straight to 60px and the target position the instant a target becomes active — is what gives the "stick" its overshoot-and-settle bounce rather than a sudden snap.
 5. On a coarse-pointer device (checked once via \`matchMedia("(pointer: coarse)")\`), a small ring — the "handle" — appears near the middle of the screen. Dragging it feeds the handle's touch position (offset up by \`HANDLE_OFFSET_Y\` px so your thumb doesn't cover the effect) into the exact same \`setPointer\` function real \`mousemove\` events use. \`touchmove\` only calls \`preventDefault()\` while the handle itself is actively being dragged, so normal page scrolling elsewhere is untouched.
 
 Adapted from Olivier Larose's Next.js + Framer Motion sticky-cursor demo. The touch drag handle isn't in the original — a hover-driven cursor effect is otherwise invisible and untestable on a phone or tablet, so it's a necessary addition here, not just a preview trick. There's a matching React/Next.js component under the React / Next.js filter, built the "real" way with Framer Motion's spring and motion values.`,
@@ -1266,7 +1266,9 @@ Adapted from Olivier Larose's Next.js + Framer Motion sticky-cursor demo. The to
  * position and trigger the same stick/morph effect without a real mouse.
  */
 function createStickyCursor(targets, options = {}) {
-  const opts = { size: 15, stickySize: 60, pull: 0.1, ease: 0.2, color: "#111", ...options };
+  // stiffness pulls the cursor toward its target each frame; friction is how much
+  // velocity survives each frame — closer to 1 means more overshoot/bounce before it settles.
+  const opts = { size: 15, stickySize: 60, pull: 0.1, stiffness: 0.15, friction: 0.65, color: "#111", ...options };
   const list = targets instanceof Element ? [targets] : Array.from(targets);
 
   const cursor = document.createElement("div");
@@ -1284,7 +1286,8 @@ function createStickyCursor(targets, options = {}) {
   document.body.appendChild(cursor);
 
   let pointer = { x: innerWidth / 2, y: innerHeight / 2 };
-  let smooth = { x: pointer.x, y: pointer.y };
+  let smooth = { x: pointer.x, y: pointer.y, vx: 0, vy: 0 };
+  let size = { value: opts.size, v: 0 };
   let active = null;
 
   function hitTest(x, y) {
@@ -1302,7 +1305,21 @@ function createStickyCursor(targets, options = {}) {
     active = hitTest(x, y);
   }
 
+  // A tiny spring integrator: nudge velocity toward the target every frame, then
+  // bleed some of it off. This is what gives the cursor its overshoot-and-settle
+  // "elastic" feel instead of just easing straight in.
+  function springStep(pos, vel, target) {
+    vel += (target - pos) * opts.stiffness;
+    vel *= opts.friction;
+    return [pos + vel, vel];
+  }
+
   function frame() {
+    let targetX = pointer.x;
+    let targetY = pointer.y;
+    let targetSize = opts.size;
+    let suffix = "";
+
     if (active) {
       const r = active.getBoundingClientRect();
       const center = { x: r.left + r.width / 2, y: r.top + r.height / 2 };
@@ -1312,21 +1329,21 @@ function createStickyCursor(targets, options = {}) {
       const scaleY = 1 - Math.min(abs / (r.width / 2), 1) * 0.2;
       const angle = Math.atan2(dist.y, dist.x);
 
-      smooth.x += (center.x + dist.x * opts.pull - smooth.x) * opts.ease;
-      smooth.y += (center.y + dist.y * opts.pull - smooth.y) * opts.ease;
-
-      cursor.style.width = opts.stickySize + "px";
-      cursor.style.height = opts.stickySize + "px";
-      cursor.style.transform =
-        "translate(" + (smooth.x - opts.stickySize / 2) + "px, " + (smooth.y - opts.stickySize / 2) + "px) " +
-        "rotate(" + angle + "rad) scaleX(" + scaleX + ") scaleY(" + scaleY + ")";
-    } else {
-      smooth.x += (pointer.x - smooth.x) * opts.ease;
-      smooth.y += (pointer.y - smooth.y) * opts.ease;
-      cursor.style.width = opts.size + "px";
-      cursor.style.height = opts.size + "px";
-      cursor.style.transform = "translate(" + (smooth.x - opts.size / 2) + "px, " + (smooth.y - opts.size / 2) + "px)";
+      targetX = center.x + dist.x * opts.pull;
+      targetY = center.y + dist.y * opts.pull;
+      targetSize = opts.stickySize;
+      suffix = " rotate(" + angle + "rad) scaleX(" + scaleX + ") scaleY(" + scaleY + ")";
     }
+
+    [smooth.x, smooth.vx] = springStep(smooth.x, smooth.vx, targetX);
+    [smooth.y, smooth.vy] = springStep(smooth.y, smooth.vy, targetY);
+    [size.value, size.v] = springStep(size.value, size.v, targetSize);
+    const s = Math.max(0, size.value);
+
+    cursor.style.width = s + "px";
+    cursor.style.height = s + "px";
+    cursor.style.transform = "translate(" + (smooth.x - s / 2) + "px, " + (smooth.y - s / 2) + "px)" + suffix;
+
     raf = requestAnimationFrame(frame);
   }
   let raf = requestAnimationFrame(frame);
@@ -1410,7 +1427,7 @@ createStickyCursor(document.querySelectorAll("[data-sticky]"));`,
 </style>
 <script>
   function createStickyCursor(targets, options) {
-    var opts = Object.assign({ size: 15, stickySize: 60, pull: 0.1, ease: 0.2, color: "#111" }, options);
+    var opts = Object.assign({ size: 15, stickySize: 60, pull: 0.1, stiffness: 0.15, friction: 0.65, color: "#111" }, options);
     var list = targets instanceof Element ? [targets] : Array.prototype.slice.call(targets);
 
     var cursor = document.createElement("div");
@@ -1422,7 +1439,8 @@ createStickyCursor(document.querySelectorAll("[data-sticky]"));`,
     document.body.appendChild(cursor);
 
     var pointer = { x: innerWidth / 2, y: innerHeight / 2 };
-    var smooth = { x: pointer.x, y: pointer.y };
+    var smooth = { x: pointer.x, y: pointer.y, vx: 0, vy: 0 };
+    var size = { value: opts.size, v: 0 };
     var active = null;
 
     function hitTest(x, y) {
@@ -1440,7 +1458,18 @@ createStickyCursor(document.querySelectorAll("[data-sticky]"));`,
       active = hitTest(x, y);
     }
 
+    function springStep(pos, vel, target) {
+      vel += (target - pos) * opts.stiffness;
+      vel *= opts.friction;
+      return [pos + vel, vel];
+    }
+
     function frame() {
+      var targetX = pointer.x;
+      var targetY = pointer.y;
+      var targetSize = opts.size;
+      var suffix = "";
+
       if (active) {
         var r = active.getBoundingClientRect();
         var center = { x: r.left + r.width / 2, y: r.top + r.height / 2 };
@@ -1450,21 +1479,23 @@ createStickyCursor(document.querySelectorAll("[data-sticky]"));`,
         var scaleY = 1 - Math.min(abs / (r.width / 2), 1) * 0.2;
         var angle = Math.atan2(dist.y, dist.x);
 
-        smooth.x += (center.x + dist.x * opts.pull - smooth.x) * opts.ease;
-        smooth.y += (center.y + dist.y * opts.pull - smooth.y) * opts.ease;
-
-        cursor.style.width = opts.stickySize + "px";
-        cursor.style.height = opts.stickySize + "px";
-        cursor.style.transform =
-          "translate(" + (smooth.x - opts.stickySize / 2) + "px, " + (smooth.y - opts.stickySize / 2) + "px) " +
-          "rotate(" + angle + "rad) scaleX(" + scaleX + ") scaleY(" + scaleY + ")";
-      } else {
-        smooth.x += (pointer.x - smooth.x) * opts.ease;
-        smooth.y += (pointer.y - smooth.y) * opts.ease;
-        cursor.style.width = opts.size + "px";
-        cursor.style.height = opts.size + "px";
-        cursor.style.transform = "translate(" + (smooth.x - opts.size / 2) + "px, " + (smooth.y - opts.size / 2) + "px)";
+        targetX = center.x + dist.x * opts.pull;
+        targetY = center.y + dist.y * opts.pull;
+        targetSize = opts.stickySize;
+        suffix = " rotate(" + angle + "rad) scaleX(" + scaleX + ") scaleY(" + scaleY + ")";
       }
+
+      var stepX = springStep(smooth.x, smooth.vx, targetX);
+      smooth.x = stepX[0]; smooth.vx = stepX[1];
+      var stepY = springStep(smooth.y, smooth.vy, targetY);
+      smooth.y = stepY[0]; smooth.vy = stepY[1];
+      var stepS = springStep(size.value, size.v, targetSize);
+      size.value = stepS[0]; size.v = stepS[1];
+      var s = Math.max(0, size.value);
+
+      cursor.style.width = s + "px";
+      cursor.style.height = s + "px";
+      cursor.style.transform = "translate(" + (smooth.x - s / 2) + "px, " + (smooth.y - s / 2) + "px)" + suffix;
     }
     setInterval(frame, 16);
 
@@ -1512,7 +1543,7 @@ createStickyCursor(document.querySelectorAll("[data-sticky]"));`,
 **How it works**
 
 1. \`targets\` is a plain array of refs — \`update()\` checks each target's \`getBoundingClientRect()\` against the pointer on every move, exactly like the vanilla version's \`hitTest\`, so there's nothing framework-specific about which element is "sticky."
-2. \`mouse.x\`/\`mouse.y\` are \`useMotionValue\`s; wrapping them in \`useSpring\` gives the cursor its follow-lag for free, with the spring's \`damping\`/\`stiffness\`/\`mass\` controlling exactly how loose or snappy it feels — no manual easing math needed.
+2. \`mouse.x\`/\`mouse.y\` are \`useMotionValue\`s; wrapping them in \`useSpring\` gives the cursor its follow-lag for free, with the spring's \`damping\`/\`stiffness\`/\`mass\` controlling exactly how loose or snappy it feels — no manual easing math needed. The size change is sprung the same way: the \`animate\` prop's own \`transition\` is set to \`{ type: "spring", ... }\` explicitly, so growing from a dot into the sticky blob overshoots slightly and settles instead of snapping straight to 60px.
 3. \`scale.x\`/\`scale.y\` are set from \`transform(abs, [0, range], [1, max])\`, Framer Motion's clamped linear interpolation helper — the same mapping the vanilla version does by hand with \`Math.min\`.
 4. The touch handle is wired up with a plain \`useEffect\` and native \`addEventListener(..., { passive: false })\` rather than React's \`onTouchMove\` prop — React marks touch listeners passive by default, which silently breaks \`preventDefault()\`, so the handle needs a real DOM listener to reliably stop the page from scrolling while it's being dragged.
 
@@ -1631,6 +1662,7 @@ export default function StickyCursor({ targets, size = 15, stickySize = 60, pull
         ref={cursorRef}
         style={{ left: smooth.x, top: smooth.y, scaleX: scale.x, scaleY: scale.y }}
         animate={{ width: cursorSize, height: cursorSize }}
+        transition={{ type: "spring", stiffness: 400, damping: 17, mass: 0.6 }}
         className="pointer-events-none fixed left-0 top-0 z-[9999] rounded-full bg-black"
       />
       {isTouch && (

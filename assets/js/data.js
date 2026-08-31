@@ -11,64 +11,6 @@ const LANGUAGE_LABELS = {
 
 const SNIPPETS = [
   {
-    id: "debounce-function",
-    title: "Debounce Function",
-    language: "javascript",
-    tags: ["functions", "performance", "closures"],
-    difficulty: "Beginner",
-    description: "Delay a function's execution until a burst of calls goes quiet — perfect for search inputs and resize handlers.",
-    explanation: `A debounce wraps a function so that no matter how many times it's called in quick succession, the wrapped function only runs once — after a period of silence.
-
-**How it works**
-
-1. \`debounce\` returns a brand new function, and keeps a \`timeoutId\` alive in its closure between calls.
-2. Every time the returned function fires, it immediately cancels any pending timer with \`clearTimeout\`.
-3. It then schedules a fresh \`setTimeout\` for \`delay\` milliseconds. If another call arrives before that timer fires, step 2 wipes it out and the clock restarts.
-4. Only when \`delay\` ms pass without a new call does the timer finally fire and invoke the original \`fn\`, with the right \`this\` and arguments preserved via \`apply\`.
-
-This makes it ideal for things like a search-as-you-type box: instead of firing a network request on every keystroke, you wait until the user pauses.`,
-    code: `function debounce(fn, delay = 300) {
-  let timeoutId;
-
-  return function debounced(...args) {
-    clearTimeout(timeoutId);
-    timeoutId = setTimeout(() => {
-      fn.apply(this, args);
-    }, delay);
-  };
-}
-
-// Usage
-const handleResize = debounce(() => {
-  console.log("Window resized to", window.innerWidth);
-}, 250);
-
-window.addEventListener("resize", handleResize);`,
-    preview: {
-      type: "js",
-      run: `function debounce(fn, delay = 300) {
-  let timeoutId;
-  return function debounced(...args) {
-    clearTimeout(timeoutId);
-    timeoutId = setTimeout(() => fn.apply(this, args), delay);
-  };
-}
-
-let executions = 0;
-const debounced = debounce(() => {
-  executions++;
-  console.log("Executed! (total executions so far: " + executions + ")");
-}, 300);
-
-console.log("Calling the debounced function 5 times rapidly...");
-for (let i = 1; i <= 5; i++) {
-  console.log("  call #" + i);
-  debounced();
-}
-console.log("Waiting for 300ms of silence...");`,
-    },
-  },
-  {
     id: "throttle-function",
     title: "Throttle Function",
     language: "javascript",

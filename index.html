@@ -24,11 +24,40 @@
             <input type="search" id="searchInput" placeholder="Search snippets — try “debounce”, “express”, “dark mode”…" aria-label="Search snippets" />
           </div>
 
-          <div class="filter-pills" role="group" aria-label="Filter by language">
+          <div class="filter-pills" role="group" aria-label="Filter by language" id="languagePills">
             <button class="pill is-active" data-filter="all"><span class="dot dot-all"></span>All</button>
             <button class="pill" data-filter="javascript"><span class="dot dot-javascript"></span>JavaScript</button>
             <button class="pill" data-filter="node"><span class="dot dot-node"></span>Node.js</button>
             <button class="pill" data-filter="tailwind"><span class="dot dot-tailwind"></span>Tailwind CSS</button>
+          </div>
+
+          <button class="filters-toggle" id="filtersToggle" type="button" aria-expanded="false" aria-controls="advancedFilters">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="6" x2="20" y2="6"/><circle cx="9" cy="6" r="2" fill="currentColor" stroke="none"/><line x1="4" y1="12" x2="20" y2="12"/><circle cx="15" cy="12" r="2" fill="currentColor" stroke="none"/><line x1="4" y1="18" x2="20" y2="18"/><circle cx="11" cy="18" r="2" fill="currentColor" stroke="none"/></svg>
+            <span>More filters</span>
+            <span class="filters-count" id="filtersCount" hidden>0</span>
+            <svg class="filters-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+          </button>
+
+          <div class="advanced-filters" id="advancedFilters">
+            <div class="advanced-filters-inner">
+              <div class="filter-group">
+                <span class="filter-group-label">Difficulty</span>
+                <div class="filter-pills filter-pills--sm" role="group" aria-label="Filter by difficulty" id="difficultyPills">
+                  <button class="pill pill--sm is-active" data-difficulty="all">All levels</button>
+                  <button class="pill pill--sm" data-difficulty="Beginner">Beginner</button>
+                  <button class="pill pill--sm" data-difficulty="Intermediate">Intermediate</button>
+                  <button class="pill pill--sm" data-difficulty="Advanced">Advanced</button>
+                </div>
+              </div>
+
+              <div class="filter-group">
+                <div class="filter-group-header">
+                  <span class="filter-group-label">Tags</span>
+                  <button class="clear-tags-btn" id="clearTagsBtn" type="button" hidden>Clear tags</button>
+                </div>
+                <div class="tag-cloud" id="tagCloud"></div>
+              </div>
+            </div>
           </div>
         </div>
       </section>

@@ -6,9 +6,17 @@ document.addEventListener("DOMContentLoaded", () => {
   const grid = document.getElementById("cardGrid");
   const emptyState = document.getElementById("emptyState");
   const searchInput = document.getElementById("searchInput");
-  const pills = document.querySelectorAll(".pill");
+  const languagePills = document.querySelectorAll("#languagePills .pill");
+  const difficultyPills = document.querySelectorAll("#difficultyPills .pill");
+  const tagCloud = document.getElementById("tagCloud");
+  const filtersToggle = document.getElementById("filtersToggle");
+  const advancedFilters = document.getElementById("advancedFilters");
+  const filtersCount = document.getElementById("filtersCount");
+  const clearTagsBtn = document.getElementById("clearTagsBtn");
 
-  let activeFilter = "all";
+  let activeLanguage = "all";
+  let activeDifficulty = "all";
+  const activeTags = new Set();
   let searchTerm = "";
 
   function arrowIcon() {
@@ -40,10 +48,12 @@ document.addEventListener("DOMContentLoaded", () => {
 
   function render() {
     const filtered = SNIPPETS.filter((s) => {
-      const matchesFilter = activeFilter === "all" || s.language === activeFilter;
+      const matchesLanguage = activeLanguage === "all" || s.language === activeLanguage;
+      const matchesDifficulty = activeDifficulty === "all" || s.difficulty === activeDifficulty;
+      const matchesTags = activeTags.size === 0 || s.tags.some((t) => activeTags.has(t));
       const haystack = `${s.title} ${s.description} ${s.tags.join(" ")}`.toLowerCase();
       const matchesSearch = haystack.includes(searchTerm.toLowerCase());
-      return matchesFilter && matchesSearch;
+      return matchesLanguage && matchesDifficulty && matchesTags && matchesSearch;
     });
 
     grid.innerHTML = filtered.map(cardTemplate).join("");
@@ -65,6 +75,62 @@ document.addEventListener("DOMContentLoaded", () => {
 
     updateFocusedCard();
   }
+
+  // ---------- tag cloud (built from the data, so it never goes stale) ----------
+  function buildTagCloud() {
+    const allTags = new Set();
+    SNIPPETS.forEach((s) => s.tags.forEach((t) => allTags.add(t)));
+
+    tagCloud.innerHTML = [...allTags]
+      .sort()
+      .map((tag) => `<button class="tag-pill" data-tag="${tag}" type="button">${tag}</button>`)
+      .join("");
+
+    tagCloud.querySelectorAll(".tag-pill").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const tag = btn.dataset.tag;
+        if (activeTags.has(tag)) {
+          activeTags.delete(tag);
+          btn.classList.remove("is-active");
+        } else {
+          activeTags.add(tag);
+          btn.classList.add("is-active");
+        }
+        updateFiltersCount();
+        render();
+      });
+    });
+  }
+
+  function updateFiltersCount() {
+    const count = (activeDifficulty !== "all" ? 1 : 0) + activeTags.size;
+    filtersCount.textContent = count;
+    filtersCount.hidden = count === 0;
+    clearTagsBtn.hidden = activeTags.size === 0;
+  }
+
+  filtersToggle.addEventListener("click", () => {
+    const isOpen = advancedFilters.classList.toggle("is-open");
+    filtersToggle.setAttribute("aria-expanded", String(isOpen));
+    filtersToggle.classList.toggle("is-open", isOpen);
+  });
+
+  difficultyPills.forEach((pill) => {
+    pill.addEventListener("click", () => {
+      difficultyPills.forEach((p) => p.classList.remove("is-active"));
+      pill.classList.add("is-active");
+      activeDifficulty = pill.dataset.difficulty;
+      updateFiltersCount();
+      render();
+    });
+  });
+
+  clearTagsBtn.addEventListener("click", () => {
+    activeTags.clear();
+    tagCloud.querySelectorAll(".tag-pill.is-active").forEach((btn) => btn.classList.remove("is-active"));
+    updateFiltersCount();
+    render();
+  });
 
   // Touch devices have no real ":hover" — instead, treat scroll position as
   // "aim": whichever card sits nearest the screen's vertical center gets the
@@ -127,11 +193,11 @@ document.addEventListener("DOMContentLoaded", () => {
     render();
   });
 
-  pills.forEach((pill) => {
+  languagePills.forEach((pill) => {
     pill.addEventListener("click", () => {
-      pills.forEach((p) => p.classList.remove("is-active"));
+      languagePills.forEach((p) => p.classList.remove("is-active"));
       pill.classList.add("is-active");
-      activeFilter = pill.dataset.filter;
+      activeLanguage = pill.dataset.filter;
       render();
     });
   });
@@ -139,11 +205,12 @@ document.addEventListener("DOMContentLoaded", () => {
   // Deep link support: index.html#javascript pre-filters the grid.
   function applyHashFilter() {
     const hash = window.location.hash.replace("#", "");
-    const match = [...pills].find((p) => p.dataset.filter === hash);
+    const match = [...languagePills].find((p) => p.dataset.filter === hash);
     if (match) match.click();
   }
   window.addEventListener("hashchange", applyHashFilter);
   applyHashFilter();
 
+  buildTagCloud();
   render();
 });

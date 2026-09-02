@@ -114,13 +114,42 @@ visual update was simply never running); it's worth specifically testing that a 
 animation loop is actually ticking (e.g. read a style property before and after a wait),
 not just that events are being received, since those are two independently-verified things.
 
-**`type: "text"`** is for anything that can't run in this sandbox at all — this is what
-the React/Next.js entry should use, since the iframe has no React/Next/framer-motion
-runtime. Give it `preview.output` (a short usage example, e.g. how the component gets
-imported and rendered) and `preview.note` explaining it's shown for reference and pointing
-the reader to the vanilla version's live preview to actually see the effect. Plain text
-only — `explanation` and `note` don't render markdown links, so reference the companion
-snippet by name, not a link.
+**React/Next.js entries can have a real live preview** — this corrects an earlier version
+of this doc, which assumed they couldn't. Set `preview.reactRuntime: true` alongside
+`type: "html"`: `buildHtmlSrcdoc` (in `assets/js/snippet.js`) then loads React 18 UMD,
+ReactDOM 18 UMD, and Framer Motion's UMD build (`unpkg.com/framer-motion@<version>/dist/framer-motion.js`,
+which genuinely exposes a `window.Motion` global — verified by inspecting the file, not
+assumed) before Tailwind, in that order — Framer Motion's UMD factory reads `window.React`
+at load time, so React must load first. Write the demo script with plain
+`React.createElement` calls (aliased to `e`) against `window.Motion.motion`/`useMotionValue`/
+`useSpring`/`useTransform`/`animate`/`transform` — skip JSX/Babel entirely, it's unnecessary
+weight and one more thing to debug. `ReactDOM.createRoot(document.getElementById("root")).render(...)`
+mounts it. This was verified two ways before trusting it: a minimal standalone rAF-counter +
+spring test (confirming `requestAnimationFrame` really does tick and a spring genuinely
+interpolates over several frames, not snap instantly) and, more importantly, the exact
+same check run back through the *real* `buildHtmlSrcdoc`/`initPreview` path via Playwright
+against the live site — trust the second one over the first if they ever disagree, since
+it's what actually ships. (An earlier attempt at this apparently hit a real rAF stall and
+worked around it with `setInterval` for a vanilla, non-React preview — that specific
+gotcha may be environment-dependent; it did not reproduce for the React+Framer Motion path
+here, but re-verify with the interaction-and-assert method below rather than assuming
+either finding generalizes.)
+
+If the real component drives its effect off `useScroll` (scroll-linked, not hover-linked),
+the scroll gotcha above still applies even with a real Framer Motion runtime loaded —
+`useScroll` won't get real scroll events in this sandbox. Don't reach for `useScroll` in
+the preview; instead create a plain `useMotionValue` for progress, wire the same
+`<input type="range">` slider pattern to call `.set(value)` on it, and feed that motion
+value into the *real* `useTransform` — this way the interpolation math the reader is
+actually being shown is still genuine Framer Motion, only the progress input is faked.
+
+**`type: "text"`** is still the right fallback for anything that genuinely can't run in
+this sandbox even with a loaded runtime (e.g. a component that hard-depends on Next.js
+routing, `next/image`, server components, or a CMS/API call with no mock worth building).
+Give it `preview.output` (a short usage example, e.g. how the component gets imported and
+rendered) and `preview.note` explaining it's shown for reference. Plain text only —
+`explanation` and `note` don't render markdown links, so reference a companion snippet by
+name, not a link.
 
 ## 4. Adding a new language category
 

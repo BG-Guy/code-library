@@ -179,7 +179,7 @@ function renderPreviewSection(snippet) {
       <h2>👀 Preview <span class="preview-badge ${badgeClass}">${badgeLabel[preview.type]}</span></h2>
       <div class="preview-panel">
         <div class="preview-toolbar">
-          <span class="preview-note" style="margin:0;">${previewToolbarLabel(preview.type)}</span>
+          <span class="preview-note" style="margin:0;">${previewToolbarLabel(preview)}</span>
           ${toolbarRight}
         </div>
         ${body}
@@ -188,9 +188,10 @@ function renderPreviewSection(snippet) {
   `;
 }
 
-function previewToolbarLabel(type) {
-  if (type === "js") return "Executed in a sandboxed frame — nothing here can touch this page.";
-  if (type === "html") return "Rendered with Tailwind and the exact markup from the snippet above.";
+function previewToolbarLabel(preview) {
+  if (preview.type === "js") return "Executed in a sandboxed frame — nothing here can touch this page.";
+  if (preview.type === "html" && preview.reactRuntime) return "Real React + Framer Motion, loaded from a CDN into this sandboxed frame.";
+  if (preview.type === "html") return "Rendered with Tailwind and the exact markup from the snippet above.";
   return "Not executed in-browser — shown for reference.";
 }
 
@@ -219,9 +220,16 @@ ${runCode}
 </body></html>`;
 }
 
-function buildHtmlSrcdoc(markup, tailwindConfig) {
+function buildHtmlSrcdoc(markup, tailwindConfig, reactRuntime) {
   return `<!doctype html>
 <html><head><meta charset="utf-8">
+${
+  reactRuntime
+    ? `<script src="https://unpkg.com/react@18/umd/react.production.min.js"><\/script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"><\/script>
+<script src="https://unpkg.com/framer-motion@11.18.2/dist/framer-motion.js"><\/script>`
+    : ""
+}
 <script src="https://cdn.tailwindcss.com"><\/script>
 ${tailwindConfig ? `<script>tailwind.config = ${tailwindConfig};<\/script>` : ""}
 <style>
@@ -292,7 +300,7 @@ function initPreview(snippet) {
     const frameWrap = document.getElementById("previewFrameWrap");
     const widthSlider = document.getElementById("previewWidth");
 
-    iframe.srcdoc = buildHtmlSrcdoc(preview.markup, preview.tailwindConfig);
+    iframe.srcdoc = buildHtmlSrcdoc(preview.markup, preview.tailwindConfig, preview.reactRuntime);
 
     window.addEventListener("message", (event) => {
       if (event.source !== iframe.contentWindow || !event.data || !event.data.__clPreviewHeight) return;

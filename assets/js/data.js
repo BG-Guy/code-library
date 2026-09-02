@@ -1220,21 +1220,70 @@ function Phrase({ text, image }) {
   );
 }`,
     preview: {
-      type: "text",
-      output: `import TextParallax from "@/components/ui/text-parallax";
+      type: "html",
+      height: 360,
+      reactRuntime: true,
+      markup: `<div id="root"></div>
+<div style="max-width:640px;margin:16px auto 0;display:flex;align-items:center;gap:10px;font:600 12px -apple-system,sans-serif;color:#475569;">
+  <span>Scroll progress</span>
+  <input id="tpRange" type="range" min="0" max="100" value="24" style="flex:1;accent-color:#4f46e5;" />
+</div>
+<p style="max-width:640px;margin:8px auto 0;font:500 11px -apple-system,sans-serif;color:#94a3b8;">The real component drives this off Framer Motion's \`useScroll\` — the slider stands in for actual page scroll here, but \`useTransform\` below is the genuine Framer Motion hook.</p>
+<style>
+  body { margin: 0; background: #f8fafc; }
+</style>
+<script>
+  var e = React.createElement;
+  var Motion = window.Motion;
 
-export default function Hero() {
-  return (
-    <TextParallax
-      rows={[
-        { text: "Front End Developer", direction: "left" },
-        { text: "Creative Coder", direction: "right" },
-        { text: "Open To Work", direction: "left" },
-      ]}
-    />
-  );
-}`,
-      note: "Needs a real Next.js + Framer Motion runtime to render, so it's shown for reference rather than executed here. The vanilla JS version of this component implements the exact same scroll math with zero dependencies and has a live, in-browser preview.",
+  var rowsData = [
+    { text: "Front End Developer", direction: "left" },
+    { text: "Creative Coder", direction: "right" },
+    { text: "Open To Work", direction: "left" }
+  ];
+
+  function ParallaxRow(props) {
+    var dir = props.direction === "right" ? 1 : -1;
+    var x = Motion.useTransform(props.progress, [0, 1], [props.speed * dir, -props.speed * dir]);
+    return e(
+      Motion.motion.div,
+      { style: { x: x, display: "flex", whiteSpace: "nowrap", willChange: "transform" } },
+      [0, 1, 2].map(function (i) {
+        return e(
+          "span",
+          { key: i, style: { padding: "0 1rem", fontSize: "7vw", fontWeight: 800, letterSpacing: "-0.02em", color: "#fff" } },
+          props.text
+        );
+      })
+    );
+  }
+
+  function TextParallaxDemo() {
+    var progress = Motion.useMotionValue(0.24);
+    var speed = 140;
+
+    React.useEffect(function () {
+      var range = document.getElementById("tpRange");
+      function onInput() {
+        progress.set(range.value / 100);
+      }
+      range.addEventListener("input", onInput);
+      return function () {
+        range.removeEventListener("input", onInput);
+      };
+    }, []);
+
+    return e(
+      "div",
+      { style: { maxWidth: 640, margin: "0 auto", borderRadius: 14, overflow: "hidden", background: "#0f172a", padding: "36px 0" } },
+      rowsData.map(function (row, i) {
+        return e(ParallaxRow, { key: i, text: row.text, direction: row.direction, speed: speed, progress: progress });
+      })
+    );
+  }
+
+  ReactDOM.createRoot(document.getElementById("root")).render(e(TextParallaxDemo));
+<\/script>`,
     },
   },
   {
@@ -1676,18 +1725,143 @@ export default function StickyCursor({ targets, size = 15, stickySize = 60, pull
   );
 }`,
     preview: {
-      type: "text",
-      output: `const btn1 = useRef(null);
-const btn2 = useRef(null);
+      type: "html",
+      height: 320,
+      reactRuntime: true,
+      markup: `<div id="root"></div>
+<script>
+  var e = React.createElement;
+  var Motion = window.Motion;
 
-return (
-  <>
-    <button ref={btn1}>Hover me</button>
-    <button ref={btn2}>...and me</button>
-    <StickyCursor targets={[btn1, btn2]} />
-  </>
-);`,
-      note: "Needs a real Next.js + Framer Motion runtime to render, so it's shown for reference rather than executed here. The vanilla JS version of this component implements the exact same stick/stretch math (plus the same touch drag handle) with zero dependencies and has a live, in-browser preview.",
+  var buttonStyle = {
+    padding: "14px 26px",
+    borderRadius: 999,
+    border: "1px solid #cbd5e1",
+    background: "#fff",
+    font: "600 14px -apple-system,sans-serif",
+    cursor: "pointer"
+  };
+
+  function StickyCursorDemo() {
+    var btn1 = React.useRef(null);
+    var btn2 = React.useRef(null);
+    var cursorRef = React.useRef(null);
+    var activeRef = React.useRef(null);
+    var sizeState = React.useState(15);
+    var cursorSize = sizeState[0];
+    var setCursorSize = sizeState[1];
+
+    var size = 15;
+    var stickySize = 60;
+    var pull = 0.1;
+
+    var mouseX = Motion.useMotionValue(0);
+    var mouseY = Motion.useMotionValue(0);
+    var scaleX = Motion.useMotionValue(1);
+    var scaleY = Motion.useMotionValue(1);
+    var smoothX = Motion.useSpring(mouseX, { damping: 20, stiffness: 300, mass: 0.5 });
+    var smoothY = Motion.useSpring(mouseY, { damping: 20, stiffness: 300, mass: 0.5 });
+
+    function update(clientX, clientY) {
+      var targets = [btn1.current, btn2.current];
+      var hit = null;
+      for (var i = 0; i < targets.length; i++) {
+        var el = targets[i];
+        if (!el) continue;
+        var rect = el.getBoundingClientRect();
+        if (clientX >= rect.left && clientX <= rect.right && clientY >= rect.top && clientY <= rect.bottom) {
+          hit = el;
+          break;
+        }
+      }
+
+      if ((hit || null) !== activeRef.current) {
+        activeRef.current = hit || null;
+        setCursorSize(hit ? stickySize : size);
+        if (!hit) Motion.animate(cursorRef.current, { scaleX: 1, scaleY: 1 }, { duration: 0.15 });
+      }
+
+      if (hit) {
+        var rect2 = hit.getBoundingClientRect();
+        var center = { x: rect2.left + rect2.width / 2, y: rect2.top + rect2.height / 2 };
+        var dist = { x: clientX - center.x, y: clientY - center.y };
+        Motion.animate(cursorRef.current, { rotate: Math.atan2(dist.y, dist.x) + "rad" }, { duration: 0 });
+
+        var abs = Math.max(Math.abs(dist.x), Math.abs(dist.y));
+        scaleX.set(Motion.transform(abs, [0, rect2.height / 2], [1, 1.3]));
+        scaleY.set(Motion.transform(abs, [0, rect2.width / 2], [1, 0.8]));
+
+        mouseX.set(center.x - stickySize / 2 + dist.x * pull);
+        mouseY.set(center.y - stickySize / 2 + dist.y * pull);
+      } else {
+        mouseX.set(clientX - size / 2);
+        mouseY.set(clientY - size / 2);
+      }
+    }
+
+    React.useEffect(function () {
+      function onMove(ev) {
+        update(ev.clientX, ev.clientY);
+      }
+      window.addEventListener("mousemove", onMove);
+      return function () {
+        window.removeEventListener("mousemove", onMove);
+      };
+    }, []);
+
+    return e(
+      React.Fragment,
+      null,
+      e(
+        "div",
+        {
+          id: "stage",
+          style: {
+            height: 220,
+            borderRadius: 14,
+            background: "#f8fafc",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: 20
+          }
+        },
+        e("button", { ref: btn1, style: buttonStyle }, "Hover me"),
+        e("button", { ref: btn2, style: buttonStyle }, "...and me")
+      ),
+      e(
+        "p",
+        {
+          style: {
+            textAlign: "center",
+            margin: "12px 0 0",
+            font: "600 12px -apple-system,sans-serif",
+            color: "#64748b"
+          }
+        },
+        "Hover the buttons with a real mouse — this is genuinely running Framer Motion's spring, not a lookalike."
+      ),
+      e(Motion.motion.div, {
+        ref: cursorRef,
+        style: {
+          position: "fixed",
+          left: smoothX,
+          top: smoothY,
+          borderRadius: "50%",
+          background: "#111",
+          pointerEvents: "none",
+          zIndex: 9999,
+          scaleX: scaleX,
+          scaleY: scaleY
+        },
+        animate: { width: cursorSize, height: cursorSize },
+        transition: { type: "spring", stiffness: 400, damping: 17, mass: 0.6 }
+      })
+    );
+  }
+
+  ReactDOM.createRoot(document.getElementById("root")).render(e(StickyCursorDemo));
+<\/script>`,
     },
   },
 ];

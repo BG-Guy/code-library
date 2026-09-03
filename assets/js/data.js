@@ -1864,4 +1864,75 @@ export default function StickyCursor({ targets, size = 15, stickySize = 60, pull
 <\/script>`,
     },
   },
+  {
+    id: "gsap-page-load-intro",
+    title: "Page-Load Intro Animation (GSAP)",
+    language: "javascript",
+    tags: ["animation", "gsap", "page-load", "stagger"],
+    difficulty: "Beginner",
+    description: "A hero's heading, subheading, and CTA button slide up and fade in one after another the moment the page loads — a single staggered GSAP tween instead of several hand-timed CSS animations.",
+    explanation: `A page-load intro where the hero's heading, subheading, and call-to-action button all slide up and fade in one after another — a couple of GSAP calls replace what would otherwise be a handful of separately-timed CSS animations.
+
+**How it works**
+
+1. \`playIntro()\` starts with \`gsap.set(".reveal", { opacity: 0, y: 40 })\`, which applies instantly with no animation — it snaps every element marked \`.reveal\` to hidden and nudged down 40px before anything else happens. Folding this into \`playIntro\` itself (rather than running it once, separately, at the top of the file) is what makes the function safe to call more than once: every call starts from the same known "hidden" state instead of assuming it's still there from a previous run.
+2. The very next line, \`gsap.to(".reveal", { y: 0, opacity: 1, ... })\`, animates those *same* elements back to their natural resting state — because \`.set()\` just applied inline styles a moment earlier, GSAP already knows exactly what to animate back to without separate "from" values written out anywhere.
+3. \`stagger: 0.15\` is what turns one \`gsap.to()\` call into a cascading sequence: instead of every \`.reveal\` element starting at the same instant, each one begins 0.15 seconds after the previous one in DOM order — a single line of config replaces writing four separate, hand-timed \`delay\` values.
+4. \`ease: "power3.out"\` gives each element a fast start that gently decelerates into its resting position rather than moving at a constant speed — this easing curve is what makes the motion read as natural instead of mechanical.
+5. Running \`playIntro\` on \`DOMContentLoaded\` — rather than as soon as the script tag runs — guarantees every \`.reveal\` element already exists in the DOM before the function ever tries to touch it.
+
+Swap the plain \`stagger: 0.15\` for a config object like \`{ each: 0.15, from: "center" }\` if you need the cascade to start from the middle of the group instead of the top — GSAP's \`stagger\` option accepts either a number or an object for exactly this kind of finer control.`,
+    code: `<!-- <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js"></script> -->
+<!-- Give every element you want in the intro a shared class, e.g. "reveal" -->
+<!--
+  <p class="reveal">Welcome to</p>
+  <h1 class="reveal">Build Something Extraordinary</h1>
+  <p class="reveal">A short subheading that explains the product in one line.</p>
+  <button class="reveal">Get Started</button>
+-->
+
+function playIntro() {
+  gsap.set(".reveal", { opacity: 0, y: 40 });
+
+  gsap.to(".reveal", {
+    y: 0,
+    opacity: 1,
+    duration: 0.9,
+    ease: "power3.out",
+    stagger: 0.15,
+  });
+}
+
+document.addEventListener("DOMContentLoaded", playIntro);`,
+    preview: {
+      type: "html",
+      height: 380,
+      markup: `<script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js"></script>
+<div class="mx-auto max-w-sm rounded-2xl bg-slate-900 px-8 py-10 text-center text-white" id="stage">
+  <p class="reveal text-xs font-semibold uppercase tracking-widest text-indigo-300">Welcome to</p>
+  <h1 class="reveal mt-2 text-2xl font-bold leading-tight">Build Something<br />Extraordinary</h1>
+  <p class="reveal mt-3 text-sm text-slate-300">A short subheading that explains the product in one line.</p>
+  <button class="reveal mt-6 rounded-full bg-indigo-500 px-6 py-2.5 text-sm font-semibold text-white">Get Started</button>
+</div>
+<div class="mt-4 flex justify-center">
+  <button id="replay" class="rounded-full border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700">Replay intro</button>
+</div>
+<script>
+  function playIntro() {
+    gsap.set(".reveal", { opacity: 0, y: 40 });
+
+    gsap.to(".reveal", {
+      y: 0,
+      opacity: 1,
+      duration: 0.9,
+      ease: "power3.out",
+      stagger: 0.15
+    });
+  }
+
+  playIntro();
+  document.getElementById("replay").addEventListener("click", playIntro);
+<\/script>`,
+    },
+  },
 ];

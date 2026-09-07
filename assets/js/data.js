@@ -1935,4 +1935,237 @@ document.addEventListener("DOMContentLoaded", playIntro);`,
 <\/script>`,
     },
   },
+  {
+    id: "reveal-footer",
+    title: "Reveal Footer",
+    language: "javascript",
+    tags: ["layout", "scroll", "footer", "css-tricks"],
+    difficulty: "Beginner",
+    description: "A footer that's completely invisible until visitors scroll all the way through the page, then gets uncovered like a curtain lifting away — a fixed footer, an opaque content wrapper on top of it, and one spacer element kept in sync with the footer's real height.",
+    explanation: `A footer that's invisible until the visitor scrolls all the way through the page, then gets uncovered like a curtain being pulled back — no scroll listener computes the reveal itself, only the footer's height needs to be tracked in JS.
+
+**How it works**
+
+1. The footer is \`position: fixed; bottom: 0\`, so it renders in the same spot on screen — the bottom of the browser viewport — from the very first frame, completely independent of how far the page has scrolled.
+2. The "shell" — everything above the footer — is \`position: relative\` with a higher \`z-index\` and an opaque background, so it visually covers the fixed footer for as long as the shell itself hasn't finished scrolling past.
+3. A separate, empty spacer element is inserted right after the shell, sized to exactly the footer's height. Because the spacer has no background of its own and isn't a positioned element, it's what actually creates the illusion: it reserves the scroll room the removed-from-flow footer needs, without painting anything over it — the fixed footer, being a positioned element, already paints above a plain unpositioned spacer under normal CSS stacking rules.
+4. As the page scrolls, the shell moves normally and eventually scrolls out from under the viewport; the spacer, having no paint of its own, is what lets the footer — which never moved — show through, for exactly the last stretch of scrolling equal to its own height.
+5. \`initRevealFooter\` measures the footer's real, responsive height with \`offsetHeight\` and writes it onto the spacer — once up front, again on window \`resize\`, and again via a \`ResizeObserver\` on the footer itself, so the reveal keeps lining up if the footer's content ever wraps onto a different number of lines.
+
+A tempting shortcut is making the footer \`position: sticky\` instead and skipping the spacer, giving the shell a matching negative \`margin-bottom\`. It looks reasonable but never actually reveals anything: since the footer is the very last thing on the page, the scroll position where it would "unstick" and the page's absolute scroll end are mathematically the same point, so it never gets a chance to become unstuck-and-visible before scrolling simply stops. \`position: fixed\` plus a real spacer element sidesteps that trap entirely.`,
+    code: `const STYLE_ID = "reveal-footer-styles";
+
+function ensureStyles() {
+  if (document.getElementById(STYLE_ID)) return;
+
+  const style = document.createElement("style");
+  style.id = STYLE_ID;
+  style.textContent = \`
+    .rf-shell {
+      position: relative;
+      z-index: 1;
+      background: inherit;
+    }
+    .rf-footer {
+      position: fixed;
+      inset: auto 0 0 0;
+      z-index: 0;
+    }
+  \`;
+  document.head.appendChild(style);
+}
+
+function initRevealFooter(shell, footer) {
+  ensureStyles();
+  shell.classList.add("rf-shell");
+  footer.classList.add("rf-footer");
+
+  const spacer = document.createElement("div");
+  shell.insertAdjacentElement("afterend", spacer);
+
+  const syncHeight = () => {
+    spacer.style.height = \`\${footer.offsetHeight}px\`;
+  };
+
+  syncHeight();
+  window.addEventListener("resize", syncHeight);
+
+  if ("ResizeObserver" in window) {
+    new ResizeObserver(syncHeight).observe(footer);
+  }
+}
+
+// Usage — everything above the footer goes inside \`shell\`; \`footer\`
+// can live anywhere in the DOM, since position: fixed takes it out
+// of normal flow regardless of where it's declared.
+initRevealFooter(
+  document.getElementById("page-shell"),
+  document.getElementById("site-footer")
+);`,
+    preview: {
+      type: "html",
+      height: 420,
+      markup: `<div style="max-width:360px;margin:0 auto;">
+  <div id="demo" style="position:relative;overflow:hidden;height:240px;border-radius:14px;border:1px solid #e2e8f0;">
+    <div id="shell" style="position:absolute;top:0;left:0;right:0;z-index:1;background:#fff;">
+      <div style="height:160px;display:flex;align-items:center;justify-content:center;background:#eef2ff;color:#3730a3;font:600 13px -apple-system,sans-serif;">Page content</div>
+      <div style="height:160px;display:flex;align-items:center;justify-content:center;background:#fff7ed;color:#9a3412;font:600 13px -apple-system,sans-serif;">Keep scrolling…</div>
+    </div>
+    <div id="footer" style="position:absolute;left:0;right:0;bottom:0;height:110px;z-index:0;display:flex;align-items:center;justify-content:center;background:#0f172a;color:#fff;font:600 13px -apple-system,sans-serif;">👋 Footer revealed!</div>
+  </div>
+  <div style="margin-top:12px;display:flex;align-items:center;gap:10px;font:600 12px -apple-system,sans-serif;color:#475569;">
+    <span>Scroll progress</span>
+    <input id="rfRange" type="range" min="0" max="100" value="0" style="flex:1;accent-color:#4f46e5;" />
+  </div>
+  <p style="margin-top:8px;font:500 11px -apple-system,sans-serif;color:#94a3b8;">The real component is driven by actual page scroll — the slider stands in for that here so the demo works inside this preview frame.</p>
+</div>
+<script>
+  var shell = document.getElementById("shell");
+  var demo = document.getElementById("demo");
+  var footerH = document.getElementById("footer").offsetHeight;
+
+  function update(progress) {
+    var shellH = shell.offsetHeight;
+    var maxTravel = Math.max(0, shellH - (demo.offsetHeight - footerH));
+    shell.style.transform = "translateY(-" + (progress / 100 * maxTravel) + "px)";
+  }
+
+  document.getElementById("rfRange").addEventListener("input", function (e) {
+    update(Number(e.target.value));
+  });
+
+  update(0);
+<\/script>`,
+    },
+  },
+  {
+    id: "reveal-footer-next",
+    title: "Reveal Footer (Next.js)",
+    language: "react",
+    tags: ["layout", "scroll", "footer", "css-tricks", "next.js"],
+    difficulty: "Beginner",
+    description: "The same curtain-style footer reveal as a copy-paste React/Next.js component — wrap your page content and footer content as props and a small `useEffect` keeps a spacer in sync with the footer's real height.",
+    explanation: `This is the same reveal-footer trick as a single-file, shadcn/ui-style component: pass it your page content as \`children\` and your footer's own content as the \`footer\` prop, and it renders the shell, a sized spacer, and a fixed footer in the right order.
+
+**How it works**
+
+1. The footer is rendered with \`ref={footerRef}\` and Tailwind's \`fixed inset-x-0 bottom-0\`, so — exactly like the vanilla version — it's pinned to the bottom of the browser viewport from the moment it mounts, regardless of scroll position.
+2. \`footerHeight\` is plain React state, not a ref mutation: a \`useEffect\` measures \`footerRef.current.offsetHeight\` on mount, then keeps it current via a \`resize\` listener and a \`ResizeObserver\`, both cleaned up on unmount.
+3. That state renders as a plain \`<div style={{ height: footerHeight }} />\` placed between the shell and the footer — this is the spacer, sized declaratively through React's render cycle instead of being created and updated by hand like the vanilla version's \`document.createElement\`.
+4. The shell itself only needs \`relative z-[1] bg-inherit\` — no margin math, because the spacer (not a margin) is what reserves the scroll room the fixed footer no longer occupies.
+
+Drop \`components/ui/reveal-footer.jsx\` into a Next.js (or any React) project, wrap your page's main content and footer markup in it once near the root layout, and the reveal works with zero other configuration.`,
+    code: `"use client";
+
+import { useEffect, useRef, useState } from "react";
+
+/**
+ * Usage:
+ *
+ * <RevealFooter footer={<SiteFooter />}>
+ *   <Hero />
+ *   <Pets />
+ * </RevealFooter>
+ *
+ * Renders \`children\` above a footer that stays hidden until the page
+ * finishes scrolling past it, then gets uncovered like a curtain.
+ */
+export default function RevealFooter({ children, footer, className = "" }) {
+  const footerRef = useRef(null);
+  const [footerHeight, setFooterHeight] = useState(0);
+
+  useEffect(() => {
+    const footerEl = footerRef.current;
+    if (!footerEl) return;
+
+    const syncHeight = () => setFooterHeight(footerEl.offsetHeight);
+
+    syncHeight();
+    window.addEventListener("resize", syncHeight);
+
+    const observer = new ResizeObserver(syncHeight);
+    observer.observe(footerEl);
+
+    return () => {
+      window.removeEventListener("resize", syncHeight);
+      observer.disconnect();
+    };
+  }, []);
+
+  return (
+    <>
+      <div className={\`relative z-[1] bg-inherit \${className}\`}>{children}</div>
+      <div style={{ height: footerHeight }} />
+      <footer ref={footerRef} className="fixed inset-x-0 bottom-0 z-0">
+        {footer}
+      </footer>
+    </>
+  );
+}`,
+    preview: {
+      type: "html",
+      height: 420,
+      reactRuntime: true,
+      markup: `<div id="root" style="max-width:360px;margin:0 auto;"></div>
+<style>
+  body { margin: 0; background: #f8fafc; }
+</style>
+<script>
+  var e = React.createElement;
+
+  function RevealFooterDemo() {
+    var progress = React.useState(0);
+    var setProgress = progress[1];
+    progress = progress[0];
+
+    var shellRef = React.useRef(null);
+    var demoRef = React.useRef(null);
+    var footerH = 110;
+
+    var maxTravel = 0;
+    if (shellRef.current && demoRef.current) {
+      maxTravel = Math.max(0, shellRef.current.offsetHeight - (demoRef.current.offsetHeight - footerH));
+    }
+    var translateY = -(progress / 100) * maxTravel;
+
+    return e(
+      "div",
+      null,
+      e(
+        "div",
+        { ref: demoRef, style: { position: "relative", overflow: "hidden", height: 240, borderRadius: 14, border: "1px solid #e2e8f0" } },
+        e(
+          "div",
+          { ref: shellRef, style: { position: "absolute", top: 0, left: 0, right: 0, zIndex: 1, background: "#fff", transform: "translateY(" + translateY + "px)" } },
+          e("div", { style: { height: 160, display: "flex", alignItems: "center", justifyContent: "center", background: "#eef2ff", color: "#3730a3", font: "600 13px -apple-system,sans-serif" } }, "Page content"),
+          e("div", { style: { height: 160, display: "flex", alignItems: "center", justifyContent: "center", background: "#fff7ed", color: "#9a3412", font: "600 13px -apple-system,sans-serif" } }, "Keep scrolling…")
+        ),
+        e(
+          "div",
+          { style: { position: "absolute", left: 0, right: 0, bottom: 0, height: footerH, zIndex: 0, display: "flex", alignItems: "center", justifyContent: "center", background: "#0f172a", color: "#fff", font: "600 13px -apple-system,sans-serif" } },
+          "👋 Footer revealed!"
+        )
+      ),
+      e(
+        "div",
+        { style: { marginTop: 12, display: "flex", alignItems: "center", gap: 10, font: "600 12px -apple-system,sans-serif", color: "#475569" } },
+        e("span", null, "Scroll progress"),
+        e("input", {
+          type: "range", min: 0, max: 100, value: progress,
+          onChange: function (ev) { setProgress(Number(ev.target.value)); },
+          style: { flex: 1, accentColor: "#4f46e5" }
+        })
+      ),
+      e(
+        "p",
+        { style: { marginTop: 8, font: "500 11px -apple-system,sans-serif", color: "#94a3b8" } },
+        "The real component is driven by actual page scroll — the slider stands in for that here so the demo works inside this preview frame."
+      )
+    );
+  }
+
+  ReactDOM.createRoot(document.getElementById("root")).render(e(RevealFooterDemo));
+<\/script>`,
+    },
+  },
 ];

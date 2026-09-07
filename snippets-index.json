@@ -1,0 +1,167 @@
+{
+  "generatedFrom": "assets/js/data.js",
+  "generatedBy": "scripts/export-index.js",
+  "count": 12,
+  "snippets": [
+    {
+      "id": "curve-page-transition",
+      "title": "Curve Page Transition",
+      "language": "javascript",
+      "tags": [
+        "animation",
+        "svg",
+        "transitions",
+        "requestanimationframe"
+      ],
+      "difficulty": "Advanced",
+      "description": "A colored SVG panel with a curved leading edge sweeps over the page, swaps the content while it's fully hidden, then sweeps away again — a framework-free take on the 'wipe' route transitions popular on portfolio sites."
+    },
+    {
+      "id": "inner-page-transition",
+      "title": "Slide-Cover Page Transition",
+      "language": "javascript",
+      "tags": [
+        "animation",
+        "css-transitions",
+        "transitions"
+      ],
+      "difficulty": "Intermediate",
+      "description": "Slide a panel up to cover the outgoing page while it shrinks back in perspective, swap the content underneath, then slide the panel away to reveal it — pure CSS transitions orchestrated by a few lines of JS."
+    },
+    {
+      "id": "hover-carousel-nav-link",
+      "title": "Hover Carousel Nav Link",
+      "language": "javascript",
+      "tags": [
+        "animation",
+        "navigation",
+        "hover-effects",
+        "dom"
+      ],
+      "difficulty": "Intermediate",
+      "description": "Turn any nav link into a two-line 'carousel' that rolls a duplicate label in on hover, with a dot-to-bar underline animating underneath — wire up an entire nav bar with one function call per link."
+    },
+    {
+      "id": "hover-teaser-side-menu",
+      "title": "Side Menu with Hover Image Teasers",
+      "language": "javascript",
+      "tags": [
+        "animation",
+        "navigation",
+        "hover-effects",
+        "menu"
+      ],
+      "difficulty": "Advanced",
+      "description": "A side-menu nav where hovering a link slides a full-size themed panel out from behind the menu — a preview of where that link leads before you click it."
+    },
+    {
+      "id": "dot-to-underline-link",
+      "title": "Dot-to-Underline Hover Link",
+      "language": "javascript",
+      "tags": [
+        "animation",
+        "navigation",
+        "hover-effects",
+        "web-animations-api"
+      ],
+      "difficulty": "Intermediate",
+      "description": "A small dot beneath a nav link fades in, then stretches into a full underline bar on hover — and mirrors the whole thing in reverse on the way out."
+    },
+    {
+      "id": "infinite-text-parallax",
+      "title": "Infinite Text Parallax",
+      "language": "javascript",
+      "tags": [
+        "scroll",
+        "animation",
+        "parallax",
+        "marquee"
+      ],
+      "difficulty": "Advanced",
+      "description": "Repeating rows of text drift sideways at different rates as the page scrolls past them — the marquee-style parallax popular on agency and portfolio hero sections, in about 30 dependency-free lines."
+    },
+    {
+      "id": "infinite-text-parallax-next",
+      "title": "Infinite Text Parallax (Next.js)",
+      "language": "react",
+      "tags": [
+        "scroll",
+        "animation",
+        "parallax",
+        "marquee",
+        "framer-motion",
+        "next.js"
+      ],
+      "difficulty": "Advanced",
+      "description": "The same scroll-linked marquee as a copy-paste React/Next.js component — drop it in components/ui, pass it a list of rows, and Framer Motion drives the transform off real scroll progress."
+    },
+    {
+      "id": "sticky-cursor",
+      "title": "Sticky Cursor",
+      "language": "javascript",
+      "tags": [
+        "cursor",
+        "hover",
+        "interaction",
+        "touch"
+      ],
+      "difficulty": "Advanced",
+      "description": "A custom round cursor that snaps to the center of any hoverable element and stretches toward the pointer like a magnet — includes a draggable touch handle so the effect works without a mouse."
+    },
+    {
+      "id": "sticky-cursor-next",
+      "title": "Sticky Cursor (Next.js)",
+      "language": "react",
+      "tags": [
+        "cursor",
+        "hover",
+        "interaction",
+        "touch",
+        "framer-motion",
+        "next.js"
+      ],
+      "difficulty": "Advanced",
+      "description": "The same magnetic sticky cursor as a copy-paste React/Next.js component — pass it a list of target refs and Framer Motion's spring drives the follow, rotate, and stretch."
+    },
+    {
+      "id": "gsap-page-load-intro",
+      "title": "Page-Load Intro Animation (GSAP)",
+      "language": "javascript",
+      "tags": [
+        "animation",
+        "gsap",
+        "page-load",
+        "stagger"
+      ],
+      "difficulty": "Beginner",
+      "description": "A hero's heading, subheading, and CTA button slide up and fade in one after another the moment the page loads — a single staggered GSAP tween instead of several hand-timed CSS animations."
+    },
+    {
+      "id": "reveal-footer",
+      "title": "Reveal Footer",
+      "language": "javascript",
+      "tags": [
+        "layout",
+        "scroll",
+        "footer",
+        "css-tricks"
+      ],
+      "difficulty": "Beginner",
+      "description": "A footer that's completely invisible until visitors scroll all the way through the page, then gets uncovered like a curtain lifting away — a fixed footer, an opaque content wrapper on top of it, and one spacer element kept in sync with the footer's real height."
+    },
+    {
+      "id": "reveal-footer-next",
+      "title": "Reveal Footer (Next.js)",
+      "language": "react",
+      "tags": [
+        "layout",
+        "scroll",
+        "footer",
+        "css-tricks",
+        "next.js"
+      ],
+      "difficulty": "Beginner",
+      "description": "The same curtain-style footer reveal as a copy-paste React/Next.js component — wrap your page content and footer content as props and a small `useEffect` keeps a spacer in sync with the footer's real height."
+    }
+  ]
+}

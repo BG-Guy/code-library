@@ -19,6 +19,14 @@ hands you a code source and wants it added to the library, they want **two** ent
 of it — a dependency-free vanilla JS version, and a copy-paste React/Next.js component
 built shadcn/ui-style (single file, Tailwind classNames, no build step, sensible props).
 
+**Before doing anything else, check `snippets-index.json`** (repo root) to see what's
+already in the library — it's a small, generated, metadata-only mirror of `SNIPPETS`
+(id, title, language, tags, difficulty, description, nothing else) kept specifically so
+you don't have to read all of `data.js` — several thousand lines including every
+snippet's full code and prose explanation — just to check whether something similar
+already exists or to find an id. Only open `data.js` itself once you know which entry
+you're adding, editing, or using as a style reference.
+
 Follow the steps below in order. They encode mistakes that were made and caught the hard
 way while building the first pair of these (the text-parallax snippet) — skipping the
 verification step in particular will let a broken preview slip through looking fine in a
@@ -221,7 +229,16 @@ but any coordinates you feed into a `TouchEvent`/`MouseEvent` you construct and 
 *inside* that frame (via `frame.evaluate`) need to be frame-relative — subtract the iframe's
 own `boundingBox()` offset first, don't add it.
 
-## 7. Commit and push
+## 7. Regenerate the index
+
+Run `node scripts/export-index.js` to rebuild `snippets-index.json` from the current
+`SNIPPETS` array. Do this any time you add, remove, or rename a snippet (edits to a
+snippet's code/explanation/preview alone don't need it, since none of that is mirrored
+into the index). Commit the updated `snippets-index.json` alongside your `data.js` change
+— a stale index is worse than no index, since it actively lies about what's in the
+library.
+
+## 8. Commit and push
 
 GitHub Pages serves this site from `main`. Development happens on a `claude/...` feature
 branch. Unless told otherwise, push to **both**: the current working branch, and a

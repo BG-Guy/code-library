@@ -1,0 +1,10 @@
+{
+  "name": "code-library",
+  "version": "1.0.0",
+  "private": true,
+  "description": "A browsable library of vanilla JavaScript and React/Next.js web development snippets.",
+  "scripts": {
+    "dev": "node scripts/dev-server.js",
+    "build:index": "node scripts/export-index.js"
+  }
+}

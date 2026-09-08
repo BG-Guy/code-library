@@ -36,10 +36,12 @@
         "animation",
         "navigation",
         "hover-effects",
-        "dom"
+        "dom",
+        "framer-motion",
+        "next.js"
       ],
       "difficulty": "Intermediate",
-      "description": "Turn any nav link into a two-line 'carousel' that rolls a duplicate label in on hover, with a dot-to-bar underline animating underneath — wire up an entire nav bar with one function call per link."
+      "description": "Turn any nav link into a two-line 'carousel' that rolls a duplicate label in on hover, with a dot-to-bar underline animating underneath — as dependency-free vanilla JS, or a Framer Motion React/Next.js component. Wire up a whole nav bar with one call per link either way."
     },
     {
       "id": "hover-teaser-side-menu",

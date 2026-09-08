@@ -29,10 +29,12 @@ document.addEventListener("DOMContentLoaded", () => {
       .map((t) => `<span class="tag">${t}</span>`)
       .join("");
 
+    const badges = langBadgesMarkup(snippet.languages || [snippet.language]);
+
     return `
       <article class="card reveal-on-scroll" data-lang="${snippet.language}" data-id="${snippet.id}" tabindex="0" role="link" aria-label="Open snippet: ${snippet.title}">
         <div class="card-top">
-          <span class="lang-badge">${snippet.language}</span>
+          ${badges}
           <span class="difficulty">${snippet.difficulty}</span>
         </div>
         <h3>${snippet.title}</h3>
@@ -48,7 +50,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
   function render() {
     const filtered = SNIPPETS.filter((s) => {
-      const matchesLanguage = activeLanguage === "all" || s.language === activeLanguage;
+      const langs = s.languages || [s.language];
+      const matchesLanguage = activeLanguage === "all" || langs.includes(activeLanguage);
       const matchesDifficulty = activeDifficulty === "all" || s.difficulty === activeDifficulty;
       const matchesTags = activeTags.size === 0 || s.tags.some((t) => activeTags.has(t));
       const haystack = `${s.title} ${s.description} ${s.tags.join(" ")}`.toLowerCase();

@@ -7,6 +7,17 @@ const LANGUAGE_LABELS = {
   react: "React / Next.js",
 };
 
+// Shared badge markup for a snippet's language(s) — used by the home grid,
+// the related-snippets grid, and the detail page header, so a multi-language
+// snippet (e.g. a vanilla + React card) always renders the same badges
+// everywhere instead of drifting per call site.
+function langBadgesMarkup(languages) {
+  if (languages.length > 1) {
+    return `<span class="lang-badge-group">${languages.map((l) => `<span class="lang-badge lang-badge-${l}">${l}</span>`).join("")}</span>`;
+  }
+  return `<span class="lang-badge">${languages[0]}</span>`;
+}
+
 const SNIPPETS = [
   {
     id: "curve-page-transition",
@@ -288,10 +299,16 @@ link.addEventListener("click", (e) => {
     id: "hover-carousel-nav-link",
     title: "Hover Carousel Nav Link",
     language: "javascript",
-    tags: ["animation", "navigation", "hover-effects", "dom"],
+    languages: ["javascript", "react"],
+    tags: ["animation", "navigation", "hover-effects", "dom", "framer-motion", "next.js"],
     difficulty: "Intermediate",
-    description: "Turn any nav link into a two-line 'carousel' that rolls a duplicate label in on hover, with a dot-to-bar underline animating underneath — wire up an entire nav bar with one function call per link.",
-    explanation: `A common portfolio-site nav effect: hovering a link makes its label appear to scroll away while an identical copy scrolls in from the opposite edge, with a thin underline growing in from a centered dot. Building this by hand normally means duplicating markup per link — this version does it for you from a single function call.
+    description: "Turn any nav link into a two-line 'carousel' that rolls a duplicate label in on hover, with a dot-to-bar underline animating underneath — as dependency-free vanilla JS, or a Framer Motion React/Next.js component. Wire up a whole nav bar with one call per link either way.",
+    variants: [
+      {
+        key: "vanilla",
+        label: "Vanilla JS",
+        language: "javascript",
+        explanation: `A common portfolio-site nav effect: hovering a link makes its label appear to scroll away while an identical copy scrolls in from the opposite edge, with a thin underline growing in from a centered dot. Building this by hand normally means duplicating markup per link — this version does it for you from a single function call. (Flip to the React/Next.js tab above for the same effect built on Framer Motion.)
 
 **How it works**
 
@@ -303,7 +320,7 @@ link.addEventListener("click", (e) => {
 6. Touch devices have no \`pointerenter\`/\`pointerleave\` to speak of, so \`initHoverCarouselLink\` doesn't guess from the device type — it checks the \`pointerType\` of whatever triggered *this* interaction, recorded on \`pointerdown\`. A \`"mouse"\` click fires \`activate\` immediately, since real hover is already showing by the time a mouse click lands; a \`"touch"\` tap is intercepted instead: the *first* one calls \`preventDefault()\` and just plays the hover animation, "priming" the link, and a *second* tap on that same link lets the click go through as a real navigation. Checking per-interaction rather than once via \`matchMedia\` keeps this correct even on hybrid devices — a touchscreen laptop with a trackpad, say — where the device supports both.
 
 Because everything is scoped through a handful of \`hc-*\` classes and one initializer function, wiring this into a whole nav bar is a one-liner per link — no markup duplication required at the call site.`,
-    code: `const STYLE_ID = "hover-carousel-link-styles";
+        code: `const STYLE_ID = "hover-carousel-link-styles";
 
 function ensureStyles() {
   if (document.getElementById(STYLE_ID)) return;
@@ -420,10 +437,10 @@ function initHoverCarouselLink(link, { direction = "y", color = "currentColor" }
 document.querySelectorAll("nav a").forEach((link) => {
   initHoverCarouselLink(link, { direction: "y", color: "#4f46e5" });
 });`,
-    preview: {
-      type: "html",
-      height: 150,
-      markup: `<nav class="flex items-center justify-center gap-8 p-10" id="demoNav">
+        preview: {
+          type: "html",
+          height: 150,
+          markup: `<nav class="flex items-center justify-center gap-8 p-10" id="demoNav">
   <a href="#" class="text-sm font-semibold text-slate-800">Home</a>
   <a href="#" class="text-sm font-semibold text-slate-800">Work</a>
   <a href="#" class="text-sm font-semibold text-slate-800">Contact</a>
@@ -507,7 +524,201 @@ document.querySelectorAll("nav a").forEach((link) => {
     initHoverCarouselLink(link, "#4f46e5");
   });
 <\/script>`,
-    },
+        },
+      },
+      {
+        key: "react",
+        label: "React / Next.js",
+        language: "react",
+        explanation: `This is the Framer Motion version of the vanilla hover-carousel link on the other tab — same illusion (two stacked copies of the label, one slides out as an identical one slides in), but the slide is now a declarative \`animate\` prop and the underline is driven imperatively through \`useAnimate\`.
+
+**How it works**
+
+1. \`secondCopyStyle\` positions a duplicate of \`children\` a full \`100%\` along whichever axis \`direction\` is — \`translateY(100%)\` for \`"y"\`, \`translateX(100%)\` for \`"x"\` — the same two-copies-in-a-track trick as the vanilla version's stacked \`.hc-copy\` spans, just expressed as inline style instead of a CSS class.
+2. The outer \`motion.div\` animates the whole track between \`{[direction]: "-100%"}\` and \`{[direction]: "0%"}\` based on \`isHover\` — spreading a computed property (\`[direction]\`) is what lets one component drive either a vertical or horizontal carousel off a single \`direction\` prop, instead of writing separate x/y variants.
+3. \`useAnimate()\` returns a \`scope\` ref and an imperative, awaitable \`animate()\` — attaching \`scope\` to the underline \`motion.span\` lets the \`useEffect\` step it through the same choreography as the vanilla version's underline transition, just written as two explicit \`await\`ed stages instead of one CSS \`transition\` on several properties: grow a hidden dot into a full-width bar on hover (\`animateIn\`), or shrink it back into a dot and fade it out on hover-out (\`animateOut\`). Awaiting each stage keeps the sequence from overlapping itself if \`isHover\` flips again mid-animation.
+4. \`left: "calc(50% - 2px)"\` centers the resting 4px dot without reaching for a \`transform\` — since \`width\`, \`height\`, and \`left\` are already plain values Framer Motion is animating directly, keeping the centering math in \`calc()\` avoids fighting a separate transform over the same element.
+5. \`color\` sets the underline's \`backgroundColor\` straight through inline \`style\`, exactly like the vanilla version passes \`color\` into its own inline \`background\` — swapping the accent per link needs no extra CSS either way.
+
+Install \`framer-motion\` as the one dependency, then wrap any label in \`<HoverCarouselWrapper direction="y" isLink color="#4f46e5">\` — pass \`isLink\` for the underline, or leave it off for a carousel with no indicator at all.`,
+        code: `"use client";
+
+import { useEffect, useState } from "react";
+import { motion, useAnimate } from "framer-motion";
+
+function cn(...classes) {
+  return classes.filter(Boolean).join(" ");
+}
+
+/**
+ * <HoverCarouselWrapper direction="y" isLink color="#4f46e5">
+ *   <span>Work</span>
+ * </HoverCarouselWrapper>
+ *
+ * direction: "y" rolls the duplicate label in from below, "x" from the side.
+ * isLink: when true, an underline grows from a centered dot into a full bar
+ * while hovered, then shrinks back to a dot on hover-out (color drives both).
+ */
+export function HoverCarouselWrapper({ className, children, direction = "y", isLink = false, color = "currentColor" }) {
+  const [isHover, setIsHover] = useState(false);
+  const [scope, animate] = useAnimate();
+
+  const secondCopyStyle =
+    direction === "y" ? { transform: "translateY(100%)" } : { transform: "translateX(100%)" };
+
+  useEffect(() => {
+    if (!isLink) return;
+
+    async function animateIn() {
+      await animate(scope.current, { opacity: 1, top: "120%" }, { duration: 0.2, ease: "circInOut" });
+      await animate(scope.current, { width: "100%", height: 2, left: 0, borderRadius: 0 }, { duration: 0.2, ease: "circInOut" });
+    }
+
+    async function animateOut() {
+      await animate(scope.current, { width: 4, height: 4, left: "calc(50% - 2px)", borderRadius: "100%" }, { duration: 0.2, ease: "circInOut" });
+      await animate(scope.current, { opacity: 0, top: "180%" }, { duration: 0.2, ease: "circInOut" });
+    }
+
+    if (isHover) animateIn();
+    else animateOut();
+  }, [isHover, animate, scope, isLink]);
+
+  return (
+    <div className="relative">
+      <motion.div
+        onPointerEnter={() => setIsHover(true)}
+        onPointerLeave={() => setIsHover(false)}
+        className={cn("relative flex h-full w-full cursor-pointer flex-col justify-start overflow-hidden", className)}
+      >
+        <motion.div
+          initial={{ [direction]: "-100%" }}
+          animate={{ [direction]: isHover ? "0%" : "-100%" }}
+          transition={{ duration: 0.3, ease: "easeOut" }}
+          className="flex h-full w-full items-center justify-center"
+        >
+          <div className="flex h-full w-full items-center justify-center">{children}</div>
+          <motion.div style={secondCopyStyle} className="absolute flex h-full w-full items-center justify-center">
+            {children}
+          </motion.div>
+        </motion.div>
+      </motion.div>
+
+      {isLink && (
+        <motion.span
+          ref={scope}
+          initial={{ width: 4, height: 4, left: "calc(50% - 2px)", opacity: 0, borderRadius: "100%" }}
+          style={{ backgroundColor: color }}
+          className="absolute"
+        />
+      )}
+    </div>
+  );
+}`,
+        preview: {
+          type: "html",
+          height: 150,
+          reactRuntime: true,
+          markup: `<nav class="flex items-center justify-center gap-8 p-10" id="demoNavReact"></nav>
+<script>
+  var e = React.createElement;
+  var Motion = window.Motion;
+
+  function cn() {
+    return Array.prototype.slice.call(arguments).filter(Boolean).join(" ");
+  }
+
+  function HoverCarouselWrapper(props) {
+    var hoverState = React.useState(false);
+    var isHover = hoverState[0];
+    var setIsHover = hoverState[1];
+    var scopeAnimate = Motion.useAnimate();
+    var scope = scopeAnimate[0];
+    var animate = scopeAnimate[1];
+
+    var secondCopyStyle =
+      props.direction === "y" ? { transform: "translateY(100%)" } : { transform: "translateX(100%)" };
+
+    React.useEffect(function () {
+      if (!props.isLink) return;
+
+      async function animateIn() {
+        await animate(scope.current, { opacity: 1, top: "120%" }, { duration: 0.2, ease: "circInOut" });
+        await animate(scope.current, { width: "100%", height: 2, left: 0, borderRadius: 0 }, { duration: 0.2, ease: "circInOut" });
+      }
+      async function animateOut() {
+        await animate(scope.current, { width: 4, height: 4, left: "calc(50% - 2px)", borderRadius: "100%" }, { duration: 0.2, ease: "circInOut" });
+        await animate(scope.current, { opacity: 0, top: "180%" }, { duration: 0.2, ease: "circInOut" });
+      }
+
+      if (isHover) animateIn();
+      else animateOut();
+    }, [isHover, animate, scope, props.isLink]);
+
+    var animateProp = {};
+    animateProp[props.direction] = isHover ? "0%" : "-100%";
+    var initialProp = {};
+    initialProp[props.direction] = "-100%";
+
+    return e(
+      "div",
+      { className: "relative" },
+      e(
+        Motion.motion.div,
+        {
+          onPointerEnter: function () { setIsHover(true); },
+          onPointerLeave: function () { setIsHover(false); },
+          className: cn("relative flex h-full w-full cursor-pointer flex-col justify-start overflow-hidden", props.className),
+        },
+        e(
+          Motion.motion.div,
+          {
+            initial: initialProp,
+            animate: animateProp,
+            transition: { duration: 0.3, ease: "easeOut" },
+            className: "flex h-full w-full items-center justify-center",
+          },
+          e("div", { className: "flex h-full w-full items-center justify-center" }, props.children),
+          e(
+            Motion.motion.div,
+            { style: secondCopyStyle, className: "absolute flex h-full w-full items-center justify-center" },
+            props.children
+          )
+        )
+      ),
+      props.isLink &&
+        e(Motion.motion.span, {
+          ref: scope,
+          initial: { width: 4, height: 4, left: "calc(50% - 2px)", opacity: 0, borderRadius: "100%" },
+          style: { backgroundColor: props.color },
+          className: "absolute h-1",
+        })
+    );
+  }
+
+  function DemoNav() {
+    var links = ["Home", "Work", "Contact"];
+    return e(
+      "nav",
+      { className: "flex items-center justify-center gap-8" },
+      links.map(function (label, i) {
+        return e(
+          HoverCarouselWrapper,
+          { key: i, direction: "y", isLink: true, color: "#4f46e5", className: "h-6" },
+          e(
+            "a",
+            { href: "#", onClick: function (ev) { ev.preventDefault(); }, className: "text-sm font-semibold text-slate-800" },
+            label
+          )
+        );
+      })
+    );
+  }
+
+  ReactDOM.createRoot(document.getElementById("demoNavReact")).render(e(DemoNav));
+<\/script>`,
+        },
+      },
+    ],
   },
   {
     id: "hover-teaser-side-menu",

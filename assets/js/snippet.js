@@ -24,12 +24,28 @@ document.addEventListener("DOMContentLoaded", () => {
 
   document.title = `${snippet.title} — Code Library`;
 
+  // A plain entry has one implicit "variant" built from its own top-level
+  // code/preview/explanation, so the rest of this page only ever renders
+  // through the variants list — single-version snippets and multi-version
+  // ones (like this one, vanilla + React) share the same render path.
+  const variants = snippet.variants || [
+    {
+      label: LANGUAGE_LABELS[snippet.language] || snippet.language,
+      language: snippet.language,
+      explanation: snippet.explanation,
+      code: snippet.code,
+      preview: snippet.preview,
+    },
+  ];
+
+  const badgeMarkup = langBadgesMarkup(snippet.languages || [snippet.language]);
+
   root.innerHTML = `
     <a class="back-link" href="index.html">${backArrow()} Back to library</a>
 
     <header class="snippet-header">
       <div class="snippet-meta">
-        <span class="lang-badge">${snippet.language}</span>
+        ${badgeMarkup}
         <span class="difficulty">${snippet.difficulty}</span>
       </div>
       <h1>${escapeHTML(snippet.title)}</h1>
@@ -39,23 +55,15 @@ document.addEventListener("DOMContentLoaded", () => {
       </div>
     </header>
 
-    <div class="code-panel">
-      <div class="code-panel-bar">
-        <span class="code-dots"><span></span><span></span><span></span></span>
-        <button class="copy-btn" id="copyBtn">
-          ${copyIcon()}
-          <span id="copyLabel">Copy code</span>
-        </button>
-      </div>
-      <pre><code class="language-${langAlias(snippet.language)}" id="codeBlock"></code></pre>
-    </div>
+    ${
+      variants.length > 1
+        ? `<div class="variant-tabs" role="tablist">
+            ${variants.map((v, i) => `<button class="variant-tab${i === 0 ? " is-active" : ""}" type="button" role="tab" data-variant="${i}">${escapeHTML(v.label)}</button>`).join("")}
+          </div>`
+        : ""
+    }
 
-    ${renderPreviewSection(snippet)}
-
-    <section class="explanation">
-      <h2>🧠 How it works</h2>
-      <div class="explanation-body">${renderMarkdownLite(snippet.explanation)}</div>
-    </section>
+    <div id="variantContent"></div>
 
     <section class="related-section">
       <h2>More snippets</h2>
@@ -63,28 +71,62 @@ document.addEventListener("DOMContentLoaded", () => {
     </section>
   `;
 
-  const codeBlock = document.getElementById("codeBlock");
-  codeBlock.textContent = snippet.code;
-  if (window.hljs) window.hljs.highlightElement(codeBlock);
+  function renderVariant(index) {
+    const variant = variants[index];
 
-  const copyBtn = document.getElementById("copyBtn");
-  const copyLabel = document.getElementById("copyLabel");
-  copyBtn.addEventListener("click", async () => {
-    try {
-      await navigator.clipboard.writeText(snippet.code);
-      copyBtn.classList.add("is-copied");
-      copyLabel.textContent = "Copied!";
-      setTimeout(() => {
-        copyBtn.classList.remove("is-copied");
-        copyLabel.textContent = "Copy code";
-      }, 1800);
-    } catch (err) {
-      copyLabel.textContent = "Press ⌘/Ctrl+C";
-    }
+    document.getElementById("variantContent").innerHTML = `
+      <div class="code-panel">
+        <div class="code-panel-bar">
+          <span class="code-dots"><span></span><span></span><span></span></span>
+          <button class="copy-btn" id="copyBtn">
+            ${copyIcon()}
+            <span id="copyLabel">Copy code</span>
+          </button>
+        </div>
+        <pre><code class="language-${langAlias(variant.language)}" id="codeBlock"></code></pre>
+      </div>
+
+      ${renderPreviewSection(variant, snippet.title)}
+
+      <section class="explanation">
+        <h2>🧠 How it works</h2>
+        <div class="explanation-body">${renderMarkdownLite(variant.explanation)}</div>
+      </section>
+    `;
+
+    const codeBlock = document.getElementById("codeBlock");
+    codeBlock.textContent = variant.code;
+    if (window.hljs) window.hljs.highlightElement(codeBlock);
+
+    const copyBtn = document.getElementById("copyBtn");
+    const copyLabel = document.getElementById("copyLabel");
+    copyBtn.addEventListener("click", async () => {
+      try {
+        await navigator.clipboard.writeText(variant.code);
+        copyBtn.classList.add("is-copied");
+        copyLabel.textContent = "Copied!";
+        setTimeout(() => {
+          copyBtn.classList.remove("is-copied");
+          copyLabel.textContent = "Copy code";
+        }, 1800);
+      } catch (err) {
+        copyLabel.textContent = "Press ⌘/Ctrl+C";
+      }
+    });
+
+    initPreview(variant);
+  }
+
+  root.querySelectorAll(".variant-tab").forEach((tab) => {
+    tab.addEventListener("click", () => {
+      root.querySelectorAll(".variant-tab").forEach((t) => t.classList.remove("is-active"));
+      tab.classList.add("is-active");
+      renderVariant(Number(tab.dataset.variant));
+    });
   });
 
+  renderVariant(0);
   renderRelated(snippet);
-  initPreview(snippet);
 });
 
 function backArrow() {
@@ -135,8 +177,8 @@ function refreshIcon() {
   return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 3v6h-6"/></svg>`;
 }
 
-function renderPreviewSection(snippet) {
-  const preview = snippet.preview;
+function renderPreviewSection(variant, title) {
+  const preview = variant.preview;
   if (!preview) return "";
 
   const badgeLabel = { js: "Live", html: "Live", text: "Example output" };
@@ -161,7 +203,7 @@ function renderPreviewSection(snippet) {
     body = `
       <div class="preview-stage">
         <div class="preview-frame-wrap" id="previewFrameWrap" style="max-width:${preview.resizable ? "700px" : "100%"}">
-          <iframe class="preview-frame" id="previewFrame" sandbox="allow-scripts" title="Live preview of ${escapeHTML(snippet.title)}" height="${preview.height || 200}"></iframe>
+          <iframe class="preview-frame" id="previewFrame" sandbox="allow-scripts" title="Live preview of ${escapeHTML(title)}" height="${preview.height || 200}"></iframe>
         </div>
       </div>
     `;
@@ -255,8 +297,21 @@ ${markup}
 </body></html>`;
 }
 
-function initPreview(snippet) {
-  const preview = snippet.preview;
+// Each renderVariant() call fully replaces the preview DOM before calling
+// initPreview() again (e.g. switching between a snippet's vanilla/React
+// tabs), so only one preview is ever live at a time — tracking and swapping
+// out the previous "message" listener here keeps that in sync instead of
+// leaking a listener (bound to an already-detached iframe) per tab switch.
+let activePreviewMessageHandler = null;
+
+function setPreviewMessageHandler(handler) {
+  if (activePreviewMessageHandler) window.removeEventListener("message", activePreviewMessageHandler);
+  activePreviewMessageHandler = handler;
+  window.addEventListener("message", handler);
+}
+
+function initPreview(variant) {
+  const preview = variant.preview;
   if (!preview) return;
 
   if (preview.type === "js") {
@@ -273,7 +328,7 @@ function initPreview(snippet) {
       consoleEl.appendChild(line);
       consoleEl.scrollTop = consoleEl.scrollHeight;
     };
-    window.addEventListener("message", messageHandler);
+    setPreviewMessageHandler(messageHandler);
 
     function run() {
       consoleEl.innerHTML = `<span class="log-empty">Running…</span>`;
@@ -302,7 +357,7 @@ function initPreview(snippet) {
 
     iframe.srcdoc = buildHtmlSrcdoc(preview.markup, preview.tailwindConfig, preview.reactRuntime);
 
-    window.addEventListener("message", (event) => {
+    setPreviewMessageHandler((event) => {
       if (event.source !== iframe.contentWindow || !event.data || !event.data.__clPreviewHeight) return;
       const h = Math.max(preview.height || 200, Math.min(event.data.height, 480));
       iframe.style.height = h + "px";
@@ -316,25 +371,30 @@ function initPreview(snippet) {
 
 function renderRelated(current) {
   const relatedGrid = document.getElementById("relatedGrid");
-  const related = SNIPPETS.filter(
-    (s) => s.id !== current.id && (s.language === current.language || s.tags.some((t) => current.tags.includes(t)))
-  ).slice(0, 3);
+  const currentLangs = current.languages || [current.language];
+  const related = SNIPPETS.filter((s) => {
+    if (s.id === current.id) return false;
+    const langs = s.languages || [s.language];
+    return langs.some((l) => currentLangs.includes(l)) || s.tags.some((t) => current.tags.includes(t));
+  }).slice(0, 3);
 
   const pool = related.length > 0 ? related : SNIPPETS.filter((s) => s.id !== current.id).slice(0, 3);
 
   relatedGrid.innerHTML = pool
-    .map(
-      (s) => `
+    .map((s) => {
+      const badges = langBadgesMarkup(s.languages || [s.language]);
+
+      return `
       <article class="card" data-lang="${s.language}" data-id="${s.id}" tabindex="0" role="link" aria-label="Open snippet: ${s.title}">
         <div class="card-top">
-          <span class="lang-badge">${s.language}</span>
+          ${badges}
           <span class="difficulty">${s.difficulty}</span>
         </div>
         <h3>${escapeHTML(s.title)}</h3>
         <p class="card-desc">${escapeHTML(s.description)}</p>
       </article>
-    `
-    )
+    `;
+    })
     .join("");
 
   relatedGrid.querySelectorAll(".card").forEach((card) => {

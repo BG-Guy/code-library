@@ -2379,4 +2379,198 @@ export default function RevealFooter({ children, footer, className = "" }) {
 <\/script>`,
     },
   },
+  {
+    id: "magnetic-button",
+    title: "Magnetic Buttons (GSAP)",
+    language: "javascript",
+    tags: ["animation", "gsap", "hover-effects", "interaction"],
+    difficulty: "Intermediate",
+    description: "Circular buttons that lean toward the cursor whenever it comes within a radius — the button itself moves more than its label for a layered depth effect — then spring back with an elastic GSAP ease the instant the pointer moves away.",
+    explanation: `A "magnetic" hover effect popular on agency sites: buttons subtly pull toward the cursor as it approaches, with the label inside drifting a smaller distance than the button itself so the two visibly separate — then everything snaps back with a bouncy elastic ease once the cursor leaves.
+
+**How it works**
+
+1. \`initMagneticButtons\` builds one small record per button up front — \`{ button, text, wasInRadius }\` — caching each button's own \`<span>\` label alongside it. The original version this is adapted from re-ran \`querySelectorAll\` for the whole button list *and* \`querySelector("span")\` per button inside the shared \`mousemove\` handler itself, on every single move; building the list once up front removes both repeated lookups entirely.
+2. On every move, each button's \`getBoundingClientRect()\` gives its live center, and \`Math.hypot(dx, dy)\` is the straight-line distance from the cursor to that center. Once the cursor is within \`radius\`, \`gsap.to()\` moves the button by \`offset * 0.5\` but its label by only \`offset * 0.2\` — the label always trailing behind the button's own motion is what sells the depth, rather than the whole button and its text moving as one rigid block.
+3. \`overwrite: "auto"\` on every tween is what keeps rapid pointer movement smooth: without it, a fresh \`gsap.to()\` fired on almost every \`mousemove\` would queue up behind whichever tween is already running on that same button instead of redirecting it, producing a laggy backlog of queued motion instead of the button tracking the cursor directly.
+4. \`resetMagnet\` fires exactly once, on the one move where a button's \`wasInRadius\` flips from \`true\` to \`false\` — not repeatedly for as long as the cursor stays away. The original version instead deferred the reset behind a 200ms \`setTimeout\`, guarded by extra per-button flags to stop it re-firing every 200ms and to cancel a pending one if the cursor came back mid-wait; tracking the one-bit radius transition directly removes the timer, the magic 200ms constant, and both flags at once — \`overwrite: "auto"\` already redirects a quick re-entry cleanly, the same way it handles any other interrupted tween.
+5. \`resetMagnet\`'s \`ease: "elastic.out(1.2, 0.2)"\` is what gives the release its bounce — the button overshoots \`(0, 0)\` slightly and settles with a couple of small oscillations, versus the plain \`power3.out\` ease used while actively tracking the cursor, which has no overshoot at all.
+
+Load GSAP once, drop \`class="magnetic-button"\` on any button with a single \`<span>\` inside for the label, and call \`initMagneticButtons\` with the resulting NodeList.`,
+    code: `<!-- <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js"></script> -->
+<!--
+  <button class="magnetic-button"><span>Button 1</span></button>
+  <button class="magnetic-button"><span>Button 2</span></button>
+  <button class="magnetic-button"><span>Button 3</span></button>
+-->
+
+const STYLE_ID = "magnetic-button-styles";
+
+function ensureStyles() {
+  if (document.getElementById(STYLE_ID)) return;
+
+  const style = document.createElement("style");
+  style.id = STYLE_ID;
+  style.textContent = \`
+    .magnetic-button {
+      position: relative;
+      width: 150px;
+      height: 150px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border: 1px solid currentColor;
+      border-radius: 50%;
+      background: none;
+      font: inherit;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    .magnetic-button span {
+      position: relative;
+      display: inline-block;
+    }
+  \`;
+  document.head.appendChild(style);
+}
+
+function initMagneticButtons(buttons, { radius = 150 } = {}) {
+  ensureStyles();
+  const list = buttons instanceof Element ? [buttons] : Array.from(buttons);
+  const items = list.map((button) => ({
+    button,
+    text: button.querySelector("span"),
+    wasInRadius: false,
+  }));
+
+  function resetMagnet(button, text) {
+    gsap.to(button, {
+      x: 0,
+      y: 0,
+      duration: 2.5,
+      ease: "elastic.out(1.2, 0.2)",
+      overwrite: "auto",
+    });
+
+    if (text) {
+      gsap.to(text, {
+        x: 0,
+        y: 0,
+        duration: 0.5,
+        ease: "power3.out",
+        overwrite: "auto",
+      });
+    }
+  }
+
+  document.addEventListener("mousemove", (e) => {
+    items.forEach((item) => {
+      const rect = item.button.getBoundingClientRect();
+      const centerX = rect.left + rect.width / 2;
+      const centerY = rect.top + rect.height / 2;
+      const distance = Math.hypot(e.clientX - centerX, e.clientY - centerY);
+      const isInRadius = distance < radius;
+
+      if (isInRadius) {
+        const offsetX = e.clientX - centerX;
+        const offsetY = e.clientY - centerY;
+
+        gsap.to(item.button, {
+          x: offsetX * 0.5,
+          y: offsetY * 0.5,
+          duration: 0.5,
+          ease: "power3.out",
+          overwrite: "auto",
+        });
+
+        if (item.text) {
+          gsap.to(item.text, {
+            x: offsetX * 0.2,
+            y: offsetY * 0.2,
+            duration: 0.5,
+            ease: "power3.out",
+            overwrite: "auto",
+          });
+        }
+      } else if (item.wasInRadius) {
+        // Fires exactly once, on the move where the cursor crosses from
+        // inside the radius to outside it — not repeatedly for as long as
+        // it stays away.
+        resetMagnet(item.button, item.text);
+      }
+
+      item.wasInRadius = isInRadius;
+    });
+  });
+}
+
+// Usage
+initMagneticButtons(document.querySelectorAll(".magnetic-button"));`,
+    preview: {
+      type: "html",
+      height: 300,
+      markup: `<script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js"></script>
+<div style="max-width:480px;margin:0 auto;padding:30px 16px 8px;display:flex;justify-content:space-around;align-items:center;" id="stage">
+  <button class="magnetic-button"><span>Home</span></button>
+  <button class="magnetic-button"><span>Work</span></button>
+  <button class="magnetic-button"><span>Contact</span></button>
+</div>
+<p style="max-width:480px;margin:4px auto 0;text-align:center;font:500 11px -apple-system,sans-serif;color:#94a3b8;">Move your cursor near a button — it pulls in, then springs back elastically once you move away.</p>
+<style>
+  body { margin: 0; background: #f0f0f0; font-family: -apple-system, sans-serif; }
+  .magnetic-button {
+    position: relative;
+    width: 96px;
+    height: 96px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid #1e293b;
+    border-radius: 50%;
+    background: #fff;
+    font-size: 13px;
+    font-weight: 700;
+    color: #1e293b;
+    cursor: pointer;
+  }
+  .magnetic-button span {
+    position: relative;
+    display: inline-block;
+  }
+</style>
+<script>
+  var radius = 90;
+  var items = Array.prototype.map.call(document.querySelectorAll(".magnetic-button"), function (button) {
+    return { button: button, text: button.querySelector("span"), wasInRadius: false };
+  });
+
+  function resetMagnet(button, text) {
+    gsap.to(button, { x: 0, y: 0, duration: 2.5, ease: "elastic.out(1.2, 0.2)", overwrite: "auto" });
+    if (text) gsap.to(text, { x: 0, y: 0, duration: 0.5, ease: "power3.out", overwrite: "auto" });
+  }
+
+  document.addEventListener("mousemove", function (e) {
+    items.forEach(function (item) {
+      var rect = item.button.getBoundingClientRect();
+      var centerX = rect.left + rect.width / 2;
+      var centerY = rect.top + rect.height / 2;
+      var distance = Math.hypot(e.clientX - centerX, e.clientY - centerY);
+      var isInRadius = distance < radius;
+
+      if (isInRadius) {
+        var offsetX = e.clientX - centerX;
+        var offsetY = e.clientY - centerY;
+
+        gsap.to(item.button, { x: offsetX * 0.5, y: offsetY * 0.5, duration: 0.5, ease: "power3.out", overwrite: "auto" });
+        if (item.text) gsap.to(item.text, { x: offsetX * 0.2, y: offsetY * 0.2, duration: 0.5, ease: "power3.out", overwrite: "auto" });
+      } else if (item.wasInRadius) {
+        resetMagnet(item.button, item.text);
+      }
+
+      item.wasInRadius = isInRadius;
+    });
+  });
+<\/script>`,
+    },
+  },
 ];

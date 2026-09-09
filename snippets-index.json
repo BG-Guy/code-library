@@ -1,7 +1,7 @@
 {
   "generatedFrom": "assets/js/data.js",
   "generatedBy": "scripts/export-index.js",
-  "count": 12,
+  "count": 13,
   "snippets": [
     {
       "id": "curve-page-transition",
@@ -164,6 +164,19 @@
       ],
       "difficulty": "Beginner",
       "description": "The same curtain-style footer reveal as a copy-paste React/Next.js component — wrap your page content and footer content as props and a small `useEffect` keeps a spacer in sync with the footer's real height."
+    },
+    {
+      "id": "magnetic-button",
+      "title": "Magnetic Buttons (GSAP)",
+      "language": "javascript",
+      "tags": [
+        "animation",
+        "gsap",
+        "hover-effects",
+        "interaction"
+      ],
+      "difficulty": "Intermediate",
+      "description": "Circular buttons that lean toward the cursor whenever it comes within a radius — the button itself moves more than its label for a layered depth effect — then spring back with an elastic GSAP ease the instant the pointer moves away."
     }
   ]
 }

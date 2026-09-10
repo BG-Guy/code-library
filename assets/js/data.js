@@ -2573,4 +2573,652 @@ initMagneticButtons(document.querySelectorAll(".magnetic-button"));`,
 <\/script>`,
     },
   },
+  {
+    id: "phone-mockup-step-showcase",
+    title: "Phone Mockup Step Showcase",
+    language: "javascript",
+    tags: ["animation", "carousel", "steps", "dom", "onboarding"],
+    difficulty: "Advanced",
+    description: "A multi-step \"how it works\" showcase where the background gradient, heading copy, and a phone-mockup visual all crossfade together on every step — dot and arrow navigation, dependency-free.",
+    explanation: `Adapted from The Fix Wizard's homepage "How It Works" section — a step-by-step process walkthrough where every step crossfades three things together: the background gradient behind the section, the heading/description text, and a phone-mockup visual showing what that step looks like on a customer's phone.
+
+One \`goTo(index)\` function keeps three independent crossfades in lockstep:
+
+1. **Background** — two full-bleed layers (\`data-layer="a"\`/\`"b"\`) are stacked on top of each other and only one is ever visible. Moving to a new step paints the *hidden* layer with the next gradient, fades it in, fades the old one out, then flips which layer is hidden for next time — this sidesteps trying to transition a \`background\` property directly, which doesn't animate smoothly between arbitrary gradients.
+2. **Text** — the heading and description each sit inside an \`overflow: hidden\` mask. A \`visible\`/\`exiting\` class pair slides the text up and out, swaps its \`textContent\` while it's off-screen, resets the transform with \`transition: none\` so the reset itself is invisible, then re-adds \`visible\` on the next frame so it slides back in from below instead of just popping into place.
+3. **Visual** — every step's phone content is pre-rendered as a \`.ssw-slide\`, stacked absolutely inside \`.ssw-visual-col\`. Only the one with \`.active\` has \`opacity: 1\` and receives pointer events, so switching steps is just moving that class.
+
+Call \`createStepShowcase(rootEl, steps)\` with an array of \`{ badge, heading, desc, color, bg, screenHTML }\` objects. \`screenHTML\` is any HTML string — a message bubble, an invoice card, a settings screen, or nothing but an icon — so wrap it in \`.ssw-phone\` / \`.ssw-screen\` for the bezel-and-notch device frame, or skip that markup entirely for a plain crossfading illustration instead of a phone.
+
+Navigation works three ways: the prev/next buttons, clicking a dot directly, and the left/right arrow keys once the component has focus.`,
+    code: `/* ---- CSS (add once to your stylesheet) ----
+.ssw { position: relative; overflow: hidden; border-radius: 24px; min-height: 560px; color: #fff; font-family: Inter, system-ui, sans-serif; }
+.ssw-bg { position: absolute; inset: 0; transition: opacity 0.6s ease; }
+.ssw-bg[data-layer="b"] { opacity: 0; }
+.ssw-inner { position: relative; z-index: 1; height: 100%; }
+.ssw-layout { display: flex; align-items: center; gap: 56px; max-width: 1000px; margin: 0 auto; padding: 56px 32px 96px; min-height: 480px; }
+.ssw-text-col { flex: 0 0 42%; display: flex; flex-direction: column; gap: 18px; }
+.ssw-badge { width: 46px; height: 46px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 15px; transition: background-color 0.5s ease; }
+.ssw-heading-mask, .ssw-desc-mask { overflow: hidden; }
+.ssw-heading { margin: 0; font-size: clamp(26px, 3vw, 40px); line-height: 1.15; font-weight: 800; transform: translateY(110%); transition: transform 0.6s cubic-bezier(0.22, 1, 0.36, 1); }
+.ssw-heading.visible { transform: translateY(0); }
+.ssw-heading.exiting { transform: translateY(-110%); }
+.ssw-desc { margin: 0; max-width: 380px; font-size: 16px; line-height: 1.6; color: rgba(255,255,255,0.7); transform: translateY(110%); transition: transform 0.6s cubic-bezier(0.22, 1, 0.36, 1) 0.06s; }
+.ssw-desc.visible { transform: translateY(0); }
+.ssw-desc.exiting { transform: translateY(-110%); }
+.ssw-visual-col { flex: 1; position: relative; min-height: 420px; }
+.ssw-slide { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; opacity: 0; transition: opacity 0.45s ease; pointer-events: none; }
+.ssw-slide.active { opacity: 1; pointer-events: auto; }
+.ssw-phone { width: 220px; height: 440px; border-radius: 40px; background: linear-gradient(160deg,#2c2c2e,#1c1c1e); box-shadow: 0 0 0 1.5px rgba(255,255,255,0.12), 0 0 0 8px #1c1c1e, 0 30px 60px rgba(0,0,0,0.6); position: relative; }
+.ssw-phone::before { content: ""; position: absolute; top: 12px; left: 50%; transform: translateX(-50%); width: 90px; height: 24px; background: #000; border-radius: 12px; z-index: 2; }
+.ssw-screen { position: absolute; inset: 8px; border-radius: 32px; overflow: hidden; display: flex; align-items: center; justify-content: center; }
+.ssw-nav { display: flex; align-items: center; justify-content: center; gap: 16px; position: absolute; left: 0; right: 0; bottom: 24px; z-index: 2; }
+.ssw-nav-btn { width: 42px; height: 42px; border-radius: 50%; border: 1px solid rgba(255,255,255,0.15); background: rgba(255,255,255,0.06); color: rgba(255,255,255,0.8); font-size: 20px; line-height: 1; cursor: pointer; }
+.ssw-nav-btn:disabled { opacity: 0.25; cursor: default; }
+.ssw-dots { display: flex; gap: 8px; }
+.ssw-dot { width: 6px; height: 6px; border-radius: 3px; border: none; background: rgba(255,255,255,0.25); cursor: pointer; transition: all 0.3s; padding: 0; }
+.ssw-dot.active { width: 22px; background: #fff; }
+@media (max-width: 720px) {
+  .ssw-layout { flex-direction: column; text-align: center; padding: 40px 20px 88px; gap: 28px; }
+  .ssw-text-col { align-items: center; }
+  .ssw-desc { max-width: 100%; }
+}
+------------------------------------------------ */
+
+/**
+ * Markup contract — steps is an array of:
+ *   { badge: "01", heading: "...", desc: "...", color: "#FF6B35", bg: "linear-gradient(...)", screenHTML: "<div>...</div>" }
+ * screenHTML is optional and can be any HTML string — wrap it in
+ * <div class="ssw-phone"><div class="ssw-screen">...</div></div> for the
+ * phone-bezel look, or leave it out entirely for a plain crossfading visual.
+ */
+function createStepShowcase(root, steps) {
+  root.classList.add("ssw");
+  root.setAttribute("tabindex", "0");
+  root.innerHTML =
+    '<div class="ssw-bg" data-layer="a"></div>' +
+    '<div class="ssw-bg" data-layer="b"></div>' +
+    '<div class="ssw-inner">' +
+      '<div class="ssw-layout">' +
+        '<div class="ssw-text-col">' +
+          '<span class="ssw-badge"></span>' +
+          '<div class="ssw-heading-mask"><h3 class="ssw-heading"></h3></div>' +
+          '<div class="ssw-desc-mask"><p class="ssw-desc"></p></div>' +
+        "</div>" +
+        '<div class="ssw-visual-col"></div>' +
+      "</div>" +
+      '<div class="ssw-nav">' +
+        '<button class="ssw-nav-btn" data-dir="prev" aria-label="Previous step">&#8249;</button>' +
+        '<div class="ssw-dots" role="tablist"></div>' +
+        '<button class="ssw-nav-btn" data-dir="next" aria-label="Next step">&#8250;</button>' +
+      "</div>" +
+    "</div>";
+
+  var bgA = root.querySelector('[data-layer="a"]');
+  var bgB = root.querySelector('[data-layer="b"]');
+  var badgeEl = root.querySelector(".ssw-badge");
+  var headingEl = root.querySelector(".ssw-heading");
+  var descEl = root.querySelector(".ssw-desc");
+  var visualCol = root.querySelector(".ssw-visual-col");
+  var dotsWrap = root.querySelector(".ssw-dots");
+  var prevBtn = root.querySelector('[data-dir="prev"]');
+  var nextBtn = root.querySelector('[data-dir="next"]');
+
+  var current = 0;
+  var bgActive = "a";
+  var busy = false;
+  var slides = [];
+  var dots = [];
+
+  steps.forEach(function (step, i) {
+    var slide = document.createElement("div");
+    slide.className = "ssw-slide" + (i === 0 ? " active" : "");
+    slide.innerHTML = step.screenHTML || "";
+    visualCol.appendChild(slide);
+    slides.push(slide);
+
+    var dot = document.createElement("button");
+    dot.className = "ssw-dot" + (i === 0 ? " active" : "");
+    dot.setAttribute("role", "tab");
+    dot.setAttribute("aria-label", "Step " + (i + 1));
+    dot.addEventListener("click", function () {
+      goTo(i);
+    });
+    dotsWrap.appendChild(dot);
+    dots.push(dot);
+  });
+
+  bgA.style.background = steps[0].bg;
+  bgB.style.background = steps[0].bg;
+  bgA.style.opacity = "1";
+
+  function paint(step) {
+    badgeEl.textContent = step.badge;
+    badgeEl.style.background = step.color;
+    headingEl.textContent = step.heading;
+    descEl.textContent = step.desc;
+  }
+
+  paint(steps[0]);
+  requestAnimationFrame(function () {
+    headingEl.classList.add("visible");
+    descEl.classList.add("visible");
+  });
+  sync();
+
+  function goTo(idx) {
+    if (idx === current || busy || idx < 0 || idx >= steps.length) return;
+    busy = true;
+    var next = steps[idx];
+
+    headingEl.classList.remove("visible");
+    headingEl.classList.add("exiting");
+    descEl.classList.remove("visible");
+    descEl.classList.add("exiting");
+
+    var incoming = bgActive === "a" ? bgB : bgA;
+    var outgoing = bgActive === "a" ? bgA : bgB;
+    incoming.style.background = next.bg;
+    incoming.style.opacity = "1";
+    outgoing.style.opacity = "0";
+    bgActive = bgActive === "a" ? "b" : "a";
+
+    slides[current].classList.remove("active");
+
+    setTimeout(function () {
+      headingEl.classList.remove("exiting");
+      descEl.classList.remove("exiting");
+      headingEl.style.transition = "none";
+      descEl.style.transition = "none";
+      headingEl.style.transform = "translateY(110%)";
+      descEl.style.transform = "translateY(110%)";
+
+      paint(next);
+      slides[idx].classList.add("active");
+      current = idx;
+      sync();
+
+      requestAnimationFrame(function () {
+        requestAnimationFrame(function () {
+          headingEl.style.transition = "";
+          descEl.style.transition = "";
+          headingEl.style.transform = "";
+          descEl.style.transform = "";
+          headingEl.classList.add("visible");
+          descEl.classList.add("visible");
+          busy = false;
+        });
+      });
+    }, 320);
+  }
+
+  function sync() {
+    dots.forEach(function (d, i) {
+      d.classList.toggle("active", i === current);
+    });
+    prevBtn.disabled = current === 0;
+    nextBtn.disabled = current === steps.length - 1;
+  }
+
+  prevBtn.addEventListener("click", function () {
+    goTo(current - 1);
+  });
+  nextBtn.addEventListener("click", function () {
+    goTo(current + 1);
+  });
+  root.addEventListener("keydown", function (e) {
+    if (e.key === "ArrowLeft") goTo(current - 1);
+    if (e.key === "ArrowRight") goTo(current + 1);
+  });
+
+  return { goTo: goTo };
+}
+
+// Usage
+createStepShowcase(document.getElementById("showcase"), [
+  {
+    badge: "01",
+    heading: "One Tap Books It",
+    desc: "Send a link, they pick a time — no phone tag.",
+    color: "#FF6B35",
+    bg: "linear-gradient(160deg,#160f40 0%,#050311 100%)",
+    screenHTML: '<div class="ssw-phone"><div class="ssw-screen" style="background:#111827;color:#fff;font:700 13px system-ui;">Booked</div></div>',
+  },
+  // ...more steps
+]);`,
+    preview: {
+      type: "html",
+      height: 340,
+      markup: `<div id="demo" style="max-width:640px;margin:0 auto;"></div>
+<style>
+  body { margin:0; background:#0b0b12; }
+  .ssw { position: relative; overflow: hidden; border-radius: 20px; min-height: 300px; color: #fff; font-family: Inter, system-ui, sans-serif; }
+  .ssw-bg { position: absolute; inset: 0; transition: opacity 0.6s ease; }
+  .ssw-bg[data-layer="b"] { opacity: 0; }
+  .ssw-inner { position: relative; z-index: 1; }
+  .ssw-layout { display: flex; align-items: center; gap: 28px; padding: 32px 28px 76px; }
+  .ssw-text-col { flex: 0 0 48%; display: flex; flex-direction: column; gap: 10px; }
+  .ssw-badge { width: 34px; height: 34px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 12px; transition: background-color 0.5s ease; }
+  .ssw-heading-mask, .ssw-desc-mask { overflow: hidden; }
+  .ssw-heading { margin: 0; font-size: 20px; line-height: 1.2; font-weight: 800; transform: translateY(110%); transition: transform 0.55s cubic-bezier(0.22,1,0.36,1); }
+  .ssw-heading.visible { transform: translateY(0); }
+  .ssw-heading.exiting { transform: translateY(-110%); }
+  .ssw-desc { margin: 0; font-size: 13px; line-height: 1.5; color: rgba(255,255,255,0.7); transform: translateY(110%); transition: transform 0.55s cubic-bezier(0.22,1,0.36,1) 0.05s; }
+  .ssw-desc.visible { transform: translateY(0); }
+  .ssw-desc.exiting { transform: translateY(-110%); }
+  .ssw-visual-col { flex: 1; position: relative; min-height: 170px; display: flex; align-items: center; justify-content: center; }
+  .ssw-slide { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; opacity: 0; transition: opacity 0.4s ease; pointer-events: none; }
+  .ssw-slide.active { opacity: 1; pointer-events: auto; }
+  .ssw-phone { width: 108px; height: 170px; border-radius: 20px; background: linear-gradient(160deg,#2c2c2e,#1c1c1e); box-shadow: 0 0 0 1px rgba(255,255,255,0.12), 0 14px 30px rgba(0,0,0,0.55); position: relative; }
+  .ssw-screen { position: absolute; inset: 5px; border-radius: 15px; overflow: hidden; display: flex; align-items: center; justify-content: center; }
+  .ssw-nav { display: flex; align-items: center; justify-content: center; gap: 12px; position: absolute; left: 0; right: 0; bottom: 16px; }
+  .ssw-nav-btn { width: 30px; height: 30px; border-radius: 50%; border: 1px solid rgba(255,255,255,0.15); background: rgba(255,255,255,0.06); color: rgba(255,255,255,0.8); font-size: 15px; cursor: pointer; }
+  .ssw-nav-btn:disabled { opacity: 0.25; cursor: default; }
+  .ssw-dots { display: flex; gap: 6px; }
+  .ssw-dot { width: 5px; height: 5px; border-radius: 3px; border: none; background: rgba(255,255,255,0.25); cursor: pointer; transition: all 0.3s; padding: 0; }
+  .ssw-dot.active { width: 16px; background: #fff; }
+</style>
+<script>
+  function createStepShowcase(root, steps) {
+    root.classList.add('ssw');
+    root.innerHTML =
+      '<div class="ssw-bg" data-layer="a"></div>' +
+      '<div class="ssw-bg" data-layer="b"></div>' +
+      '<div class="ssw-inner">' +
+        '<div class="ssw-layout">' +
+          '<div class="ssw-text-col">' +
+            '<span class="ssw-badge"></span>' +
+            '<div class="ssw-heading-mask"><h3 class="ssw-heading"></h3></div>' +
+            '<div class="ssw-desc-mask"><p class="ssw-desc"></p></div>' +
+          '</div>' +
+          '<div class="ssw-visual-col"></div>' +
+        '</div>' +
+        '<div class="ssw-nav">' +
+          '<button class="ssw-nav-btn" data-dir="prev" aria-label="Previous step">&#8249;</button>' +
+          '<div class="ssw-dots" role="tablist"></div>' +
+          '<button class="ssw-nav-btn" data-dir="next" aria-label="Next step">&#8250;</button>' +
+        '</div>' +
+      '</div>';
+
+    var bgA = root.querySelector('[data-layer="a"]');
+    var bgB = root.querySelector('[data-layer="b"]');
+    var badgeEl = root.querySelector('.ssw-badge');
+    var headingEl = root.querySelector('.ssw-heading');
+    var descEl = root.querySelector('.ssw-desc');
+    var visualCol = root.querySelector('.ssw-visual-col');
+    var dotsWrap = root.querySelector('.ssw-dots');
+    var prevBtn = root.querySelector('[data-dir="prev"]');
+    var nextBtn = root.querySelector('[data-dir="next"]');
+
+    var current = 0, bgActive = 'a', busy = false;
+    var slides = [], dots = [];
+
+    steps.forEach(function (step, i) {
+      var slide = document.createElement('div');
+      slide.className = 'ssw-slide' + (i === 0 ? ' active' : '');
+      slide.innerHTML = step.screenHTML || '';
+      visualCol.appendChild(slide);
+      slides.push(slide);
+
+      var dot = document.createElement('button');
+      dot.className = 'ssw-dot' + (i === 0 ? ' active' : '');
+      dot.setAttribute('role', 'tab');
+      dot.setAttribute('aria-label', 'Step ' + (i + 1));
+      dot.addEventListener('click', function () { goTo(i); });
+      dotsWrap.appendChild(dot);
+      dots.push(dot);
+    });
+
+    bgA.style.background = steps[0].bg;
+    bgB.style.background = steps[0].bg;
+    bgA.style.opacity = '1';
+
+    function paint(step) {
+      badgeEl.textContent = step.badge;
+      badgeEl.style.background = step.color;
+      headingEl.textContent = step.heading;
+      descEl.textContent = step.desc;
+    }
+
+    paint(steps[0]);
+    requestAnimationFrame(function () {
+      headingEl.classList.add('visible');
+      descEl.classList.add('visible');
+    });
+    sync();
+
+    function goTo(idx) {
+      if (idx === current || busy || idx < 0 || idx >= steps.length) return;
+      busy = true;
+      var next = steps[idx];
+
+      headingEl.classList.remove('visible');
+      headingEl.classList.add('exiting');
+      descEl.classList.remove('visible');
+      descEl.classList.add('exiting');
+
+      var incoming = bgActive === 'a' ? bgB : bgA;
+      var outgoing = bgActive === 'a' ? bgA : bgB;
+      incoming.style.background = next.bg;
+      incoming.style.opacity = '1';
+      outgoing.style.opacity = '0';
+      bgActive = bgActive === 'a' ? 'b' : 'a';
+
+      slides[current].classList.remove('active');
+
+      setTimeout(function () {
+        headingEl.classList.remove('exiting');
+        descEl.classList.remove('exiting');
+        headingEl.style.transition = 'none';
+        descEl.style.transition = 'none';
+        headingEl.style.transform = 'translateY(110%)';
+        descEl.style.transform = 'translateY(110%)';
+
+        paint(next);
+        slides[idx].classList.add('active');
+        current = idx;
+        sync();
+
+        requestAnimationFrame(function () {
+          requestAnimationFrame(function () {
+            headingEl.style.transition = '';
+            descEl.style.transition = '';
+            headingEl.style.transform = '';
+            descEl.style.transform = '';
+            headingEl.classList.add('visible');
+            descEl.classList.add('visible');
+            busy = false;
+          });
+        });
+      }, 320);
+    }
+
+    function sync() {
+      dots.forEach(function (d, i) { d.classList.toggle('active', i === current); });
+      prevBtn.disabled = current === 0;
+      nextBtn.disabled = current === steps.length - 1;
+    }
+
+    prevBtn.addEventListener('click', function () { goTo(current - 1); });
+    nextBtn.addEventListener('click', function () { goTo(current + 1); });
+
+    return { goTo: goTo };
+  }
+
+  createStepShowcase(document.getElementById('demo'), [
+    {
+      badge: '01', color: '#FF6B35',
+      bg: 'linear-gradient(160deg,#2a1204 0%,#0d0500 100%)',
+      heading: 'One Tap Books It',
+      desc: 'Send a link, they pick a time. No phone tag.',
+      screenHTML: '<div class="ssw-phone"><div class="ssw-screen" style="background:#111827;color:#fff;font:700 13px system-ui;">Booked</div></div>'
+    },
+    {
+      badge: '02', color: '#38bdf8',
+      bg: 'linear-gradient(160deg,#072030 0%,#020c12 100%)',
+      heading: 'We\\'re On Our Way',
+      desc: 'A live arrival alert lands 30 minutes out.',
+      screenHTML: '<div class="ssw-phone"><div class="ssw-screen" style="background:#111827;color:#93c5fd;font:700 12px system-ui;">On the way</div></div>'
+    },
+    {
+      badge: '03', color: '#4ade80',
+      bg: 'linear-gradient(160deg,#0a1a08 0%,#030804 100%)',
+      heading: 'Paid In One Tap',
+      desc: 'A secure payment link, done before you leave.',
+      screenHTML: '<div class="ssw-phone"><div class="ssw-screen" style="background:#f0efe9;color:#241a12;font:700 13px system-ui;">$185.00</div></div>'
+    }
+  ]);
+<\/script>`,
+    },
+  },
+  {
+    id: "phone-mockup-step-showcase-next",
+    title: "Phone Mockup Step Showcase (Next.js)",
+    language: "react",
+    tags: ["animation", "carousel", "steps", "framer-motion", "next.js", "onboarding"],
+    difficulty: "Advanced",
+    description: "The same phone-mockup step showcase as a copy-paste React/Next.js component — Framer Motion crossfades the background, heading, and phone visual on every step change.",
+    explanation: `The React/Next.js version of the phone-mockup step showcase, swapping the vanilla version's manual dual-layer crossfade for Framer Motion's \`AnimatePresence\`. Pass a \`steps\` array of \`{ badge, heading, desc, color, bg, content }\` — \`content\` is any React node, and the exported \`PhoneMockup\` component is just one way to wrap it in a phone bezel; pass a plain \`<div>\` instead for a non-phone visual.
+
+Every crossfade is keyed on \`index\`, so \`AnimatePresence\` handles animating the outgoing element out and the incoming one in whenever the key changes:
+
+1. The **background** is a single \`motion.div\` re-keyed on \`step.bg\`, so Framer Motion fades between gradients the same way the vanilla version's two stacked layers do, without needing to manage two elements by hand.
+2. The **heading and description** are wrapped together and keyed on \`index\`, sliding up when moving forward and down when moving backward — the direction comes from a \`dir\` flag \`goTo()\` sets based on whether the new index is greater or less than the current one.
+3. The **visual** column crossfades \`step.content\` the same way, just with a plain opacity fade instead of a directional slide.
+
+\`goTo(i)\` guards against re-entering the current index or stepping out of bounds, and the prev/next buttons disable themselves at either end exactly like the vanilla version.`,
+    code: `"use client";
+
+import { useState } from "react";
+import { AnimatePresence, motion } from "framer-motion";
+
+/**
+ * Usage:
+ *
+ * <StepShowcase
+ *   steps={[
+ *     {
+ *       badge: "01",
+ *       heading: "One Tap Books It",
+ *       desc: "Send a link, they pick a time — no phone tag.",
+ *       color: "#FF6B35",
+ *       bg: "linear-gradient(160deg,#160f40 0%,#050311 100%)",
+ *       content: <PhoneMockup>Booked</PhoneMockup>,
+ *     },
+ *     // ...more steps
+ *   ]}
+ * />
+ */
+export default function StepShowcase({ steps }) {
+  const [index, setIndex] = useState(0);
+  const [dir, setDir] = useState(1);
+  const step = steps[index];
+
+  function goTo(i) {
+    if (i === index || i < 0 || i >= steps.length) return;
+    setDir(i > index ? 1 : -1);
+    setIndex(i);
+  }
+
+  return (
+    <div className="relative min-h-[560px] overflow-hidden rounded-3xl text-white">
+      <AnimatePresence>
+        <motion.div
+          key={step.bg}
+          className="absolute inset-0"
+          style={{ background: step.bg }}
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.6, ease: "easeInOut" }}
+        />
+      </AnimatePresence>
+
+      <div className="relative z-10 mx-auto flex max-w-5xl flex-col items-center gap-10 px-8 py-14 md:min-h-[480px] md:flex-row md:gap-14">
+        <div className="flex flex-col items-center gap-4 md:flex-[0_0_42%] md:items-start">
+          <span
+            className="flex h-11 w-11 items-center justify-center rounded-full text-sm font-extrabold transition-colors duration-500"
+            style={{ background: step.color }}
+          >
+            {step.badge}
+          </span>
+
+          <div className="overflow-hidden text-center md:text-left">
+            <AnimatePresence mode="wait" initial={false}>
+              <motion.div
+                key={index}
+                initial={{ y: dir > 0 ? "110%" : "-110%" }}
+                animate={{ y: 0 }}
+                exit={{ y: dir > 0 ? "-110%" : "110%" }}
+                transition={{ duration: 0.55, ease: [0.22, 1, 0.36, 1] }}
+              >
+                <h3 className="text-3xl font-extrabold leading-tight md:text-4xl">
+                  {step.heading}
+                </h3>
+                <p className="mt-3 max-w-sm text-white/70">{step.desc}</p>
+              </motion.div>
+            </AnimatePresence>
+          </div>
+        </div>
+
+        <div className="relative flex min-h-[380px] flex-1 items-center justify-center">
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={index}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.4 }}
+            >
+              {step.content}
+            </motion.div>
+          </AnimatePresence>
+        </div>
+      </div>
+
+      <div className="absolute inset-x-0 bottom-6 z-10 flex items-center justify-center gap-4">
+        <button
+          onClick={() => goTo(index - 1)}
+          disabled={index === 0}
+          aria-label="Previous step"
+          className="flex h-10 w-10 items-center justify-center rounded-full border border-white/15 bg-white/5 text-white/80 disabled:opacity-25"
+        >
+          ‹
+        </button>
+        <div className="flex items-center gap-2" role="tablist">
+          {steps.map((_, i) => (
+            <button
+              key={i}
+              onClick={() => goTo(i)}
+              role="tab"
+              aria-selected={i === index}
+              aria-label={"Step " + (i + 1)}
+              className={
+                i === index
+                  ? "h-1.5 w-6 rounded-full bg-white transition-all duration-300"
+                  : "h-1.5 w-1.5 rounded-full bg-white/25 transition-all duration-300"
+              }
+            />
+          ))}
+        </div>
+        <button
+          onClick={() => goTo(index + 1)}
+          disabled={index === steps.length - 1}
+          aria-label="Next step"
+          className="flex h-10 w-10 items-center justify-center rounded-full border border-white/15 bg-white/5 text-white/80 disabled:opacity-25"
+        >
+          ›
+        </button>
+      </div>
+    </div>
+  );
+}
+
+export function PhoneMockup({ children }) {
+  return (
+    <div className="relative h-[420px] w-[210px] rounded-[40px] bg-gradient-to-b from-neutral-800 to-neutral-900 shadow-[0_0_0_1.5px_rgba(255,255,255,0.12),0_30px_60px_rgba(0,0,0,0.6)]">
+      <div className="absolute left-1/2 top-3 h-6 w-24 -translate-x-1/2 rounded-full bg-black" />
+      <div className="absolute inset-2 flex items-center justify-center overflow-hidden rounded-[32px]">
+        {children}
+      </div>
+    </div>
+  );
+}`,
+    preview: {
+      type: "html",
+      height: 360,
+      reactRuntime: true,
+      markup: `<div id="root" style="max-width:640px;margin:0 auto;"></div>
+<style>
+  body { margin:0; background:#0b0b12; }
+</style>
+<script>
+  var e = React.createElement;
+  var Motion = window.Motion;
+
+  var steps = [
+    { badge: '01', color: '#FF6B35', bg: 'linear-gradient(160deg,#2a1204 0%,#0d0500 100%)', heading: 'One Tap Books It', desc: 'Send a link, they pick a time.', screen: 'Booked' },
+    { badge: '02', color: '#38bdf8', bg: 'linear-gradient(160deg,#072030 0%,#020c12 100%)', heading: 'We\\'re On Our Way', desc: 'A live arrival alert lands 30 minutes out.', screen: 'On the way' },
+    { badge: '03', color: '#4ade80', bg: 'linear-gradient(160deg,#0a1a08 0%,#030804 100%)', heading: 'Paid In One Tap', desc: 'A secure payment link, done in seconds.', screen: '$185.00' }
+  ];
+
+  function PhoneScreen(props) {
+    return e('div', {
+      style: {
+        width: 108, height: 170, borderRadius: 20,
+        background: 'linear-gradient(160deg,#2c2c2e,#1c1c1e)',
+        boxShadow: '0 0 0 1px rgba(255,255,255,0.12), 0 14px 30px rgba(0,0,0,0.55)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        color: '#fff', fontSize: 12, fontWeight: 700
+      }
+    }, props.children);
+  }
+
+  function StepShowcaseDemo() {
+    var state = React.useState(0);
+    var index = state[0], setIndex = state[1];
+    var step = steps[index];
+
+    function goTo(i) {
+      if (i < 0 || i >= steps.length) return;
+      setIndex(i);
+    }
+
+    return e('div', {
+      style: { position: 'relative', minHeight: 300, borderRadius: 20, overflow: 'hidden', color: '#fff', fontFamily: 'Inter, system-ui, sans-serif' }
+    },
+      e(Motion.motion.div, {
+        key: 'bg-' + index,
+        style: { position: 'absolute', inset: 0, background: step.bg },
+        initial: { opacity: 0.4 },
+        animate: { opacity: 1 },
+        transition: { duration: 0.5 }
+      }),
+      e('div', { style: { position: 'relative', zIndex: 1, display: 'flex', alignItems: 'center', gap: 20, padding: '28px 24px 64px' } },
+        e('div', { style: { flex: '0 0 50%', display: 'flex', flexDirection: 'column', gap: 8 } },
+          e('span', {
+            style: { width: 30, height: 30, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 800, background: step.color }
+          }, step.badge),
+          e(Motion.motion.div, {
+            key: 'text-' + index,
+            initial: { y: 14, opacity: 0 },
+            animate: { y: 0, opacity: 1 },
+            transition: { duration: 0.4 }
+          },
+            e('h3', { style: { margin: '6px 0 4px', fontSize: 17, fontWeight: 800 } }, step.heading),
+            e('p', { style: { margin: 0, fontSize: 12, color: 'rgba(255,255,255,0.7)' } }, step.desc)
+          )
+        ),
+        e('div', { style: { flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 160 } },
+          e(Motion.motion.div, { key: 'phone-' + index, initial: { opacity: 0 }, animate: { opacity: 1 }, transition: { duration: 0.35 } },
+            e(PhoneScreen, null, step.screen)
+          )
+        )
+      ),
+      e('div', { style: { position: 'absolute', left: 0, right: 0, bottom: 16, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10 } },
+        e('button', {
+          onClick: function () { goTo(index - 1); },
+          disabled: index === 0,
+          style: { width: 28, height: 28, borderRadius: '50%', border: '1px solid rgba(255,255,255,0.15)', background: 'rgba(255,255,255,0.06)', color: '#fff', cursor: 'pointer', opacity: index === 0 ? 0.25 : 1 }
+        }, '‹'),
+        steps.map(function (_, i) {
+          return e('button', {
+            key: i,
+            onClick: function () { goTo(i); },
+            style: { width: i === index ? 16 : 5, height: 5, borderRadius: 3, border: 'none', background: i === index ? '#fff' : 'rgba(255,255,255,0.25)', cursor: 'pointer', transition: 'all .3s' }
+          });
+        }),
+        e('button', {
+          onClick: function () { goTo(index + 1); },
+          disabled: index === steps.length - 1,
+          style: { width: 28, height: 28, borderRadius: '50%', border: '1px solid rgba(255,255,255,0.15)', background: 'rgba(255,255,255,0.06)', color: '#fff', cursor: 'pointer', opacity: index === steps.length - 1 ? 0.25 : 1 }
+        }, '›')
+      )
+    );
+  }
+
+  ReactDOM.createRoot(document.getElementById('root')).render(e(StepShowcaseDemo));
+<\/script>`,
+    },
+  },
 ];

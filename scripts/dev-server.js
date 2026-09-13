@@ -8,7 +8,8 @@ const fs = require("fs");
 const path = require("path");
 
 const repoRoot = path.join(__dirname, "..");
-const port = process.env.PORT || 5173;
+const startPort = Number(process.env.PORT) || 5173;
+const MAX_PORT_ATTEMPTS = 10;
 
 const MIME_TYPES = {
   ".html": "text/html; charset=utf-8",
@@ -24,7 +25,7 @@ const MIME_TYPES = {
   ".woff2": "font/woff2",
 };
 
-const server = http.createServer((req, res) => {
+function requestHandler(req, res) {
   let requestPath;
   try {
     requestPath = decodeURIComponent(req.url.split("?")[0]);
@@ -62,8 +63,30 @@ const server = http.createServer((req, res) => {
       res.end(data);
     });
   });
-});
+}
 
-server.listen(port, () => {
-  console.log(`Dev server running at http://localhost:${port}`);
-});
+// A fresh server instance per attempt avoids stale "listening" listeners
+// piling up on a shared server object across retries — a failed .listen()
+// call never fires "listening" for that attempt, so its callback would
+// otherwise linger and fire alongside the next attempt's once one succeeds.
+function listen(port, attemptsLeft) {
+  const server = http.createServer(requestHandler);
+
+  server.once("error", (err) => {
+    if (err.code === "EADDRINUSE" && attemptsLeft > 0 && port + 1 <= 65535) {
+      console.log(`Port ${port} is already in use, trying ${port + 1}...`);
+      listen(port + 1, attemptsLeft - 1);
+      return;
+    }
+    throw err;
+  });
+
+  server.listen(port, () => {
+    console.log(`Dev server running at http://localhost:${port}`);
+  });
+}
+
+// attemptsLeft counts retries after the first try, so MAX_PORT_ATTEMPTS - 1
+// here means startPort through startPort + MAX_PORT_ATTEMPTS - 1 get tried —
+// MAX_PORT_ATTEMPTS ports total.
+listen(startPort, MAX_PORT_ATTEMPTS - 1);

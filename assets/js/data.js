@@ -3221,4 +3221,422 @@ export function PhoneMockup({ children }) {
 <\/script>`,
     },
   },
+  {
+    id: "flowing-line-bundle",
+    title: "Flowing Line Bundle",
+    language: "javascript",
+    tags: ["animation", "canvas", "hero-background", "requestanimationframe"],
+    difficulty: "Advanced",
+    description: "A fan of curved lines that all pass near one shared point and spread apart on either side — the same shape a lens focuses light rays into — every line rippling with the exact same wave, just sampled from a different spot in a shared travel range, so the whole bundle reads as one motion passed hand to hand rather than many independent animations.",
+    explanation: `A canvas-drawn hero background: a bundle of curves that braid tightly through one shared point and fan apart on both sides, with every line rippling to the exact same waveform — just phase-shifted from a different position in a shared travel range.
+
+**How it works**
+
+1. \`buildLines()\` computes each line's static geometry up front: its entry/exit angle (interpolated across \`entryAngles\`/\`exitAngles\`), its perpendicular offset at the pinch (\`bunch\`), and — the key idea — its \`wavePhase\`, derived from where it sits in a shared \`travelMin\`–\`travelMax\` range stepped by \`travelStep\`. Line 0 starts at \`travelMin\`, line 1 at \`travelMin + travelStep\`, and so on; that starting position is mapped onto one full 2π turn of the ripple's cycle, so every line is the *same* oscillator, just sampled at a different point in its cycle.
+2. \`baseBezierFor()\` builds each line's underlying cubic bezier: both endpoints sit far out along the line's own entry/exit angle from the pinch, and both control points are pulled back in close to the pinch and bowed sideways by a fixed \`curveAmount\` — pulling every line's handles toward one shared point is what makes 30 independent curves braid through a single narrow waist instead of just crossing at random angles.
+3. \`tracePath()\` doesn't stroke that bezier directly — it samples ~70 points along it with \`bezierPoint\`/\`bezierTangent\`, and pushes each sample sideways along the curve's own normal by \`sin(waveFreq · u · 2π + wavePhase + t · waveSpeed)\`. \`waveAmp\`, \`waveFreq\`, and \`waveSpeed\` are one shared value for every line, and only \`wavePhase\` differs, so the whole bundle reads as a single wave passed from line to line rather than many independent animations. A \`taper\` fades the ripple to 0 in just the last 6% at each end so every line still lands exactly on its start/end point.
+4. \`pinchAt()\` adds a second, slower layer of motion: the shared pinch point drifts on one sine, computed once per frame and reused by every line — so the bundle's overall shape isn't perfectly static, but still moves as a single rigid whole rather than each line drifting at its own speed.
+5. Color comes from \`paletteColor()\`, a 5-stop gradient (green → teal → cyan → blue) sampled by each line's fan position rather than one fixed palette for every line, so the bundle visibly separates by color from one edge to the other — plus roughly 1 line in \`accentEvery\` gets recolored magenta as a spark.
+
+Give it a positioned container with a canvas inside — the canvas resizes to \`canvas.parentElement\`'s box — and call \`initFlowingLines(canvasEl)\`. Every parameter above is overridable through the second argument.`,
+    code: `function initFlowingLines(canvas, overrides) {
+  const ctx = canvas.getContext("2d");
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+
+  const CONFIG = Object.assign({
+    lineCount: 30,
+    pinch: { x: 0.66, y: 0.46 },       // fraction of canvas size
+    entryAngles: [208, 249],           // degrees, where lines enter from (down-left)
+    exitAngles: [8, 58],               // degrees, where lines exit toward (up-right)
+    bunch: 22,                         // px perpendicular spread at the pinch, at rest
+    curveAmount: 22,                   // px each control point is nudged sideways, for one gentle overall bow
+    breathAmp: 14,                     // px the pinch drifts by
+    breathPeriod: 9,                   // seconds per line's own breathing cycle (base)
+    waveSamples: 72,                   // points sampled along each line to draw its ripple
+    waveAmp: 34,                       // px, ripple size (shared by every line)
+    waveFreq: 2.6,                     // cycles along the line's length (shared by every line)
+    waveSpeed: 0.55,                   // rad/sec the ripple's phase advances (shared by every line)
+    travelMin: 1,                      // every line samples the same oscillator from a
+    travelMax: 10,                     // different spot in this range, travelStep apart —
+    travelStep: 0.3,                   // that's the only thing that differs between lines
+    drawWidth: 0.9,
+    glowWidth: 2.2,
+    accentEvery: 21,                   // 1 line in this many gets recolored as a spark
+    palette: [
+      [134, 224, 96],   // yellow-green
+      [74, 222, 128],   // green
+      [45, 212, 191],   // teal
+      [34, 211, 238],   // cyan
+      [59, 130, 246],   // blue
+    ],
+    accentColor: [217, 130, 245],       // magenta spark
+  }, overrides);
+
+  function lerp(a, b, u) { return a + (b - a) * u; }
+  function degToRad(d) { return (d / 180) * Math.PI; }
+
+  function paletteColor(u) {
+    u = Math.max(0, Math.min(1, u));
+    const palette = CONFIG.palette;
+    const scaled = u * (palette.length - 1);
+    const i0 = Math.floor(scaled);
+    const i1 = Math.min(palette.length - 1, i0 + 1);
+    const f = scaled - i0;
+    const a = palette[i0], b = palette[i1];
+    return [
+      a[0] + (b[0] - a[0]) * f,
+      a[1] + (b[1] - a[1]) * f,
+      a[2] + (b[2] - a[2]) * f,
+    ];
+  }
+
+  // Point and tangent on a cubic bezier at parameter u, so a ripple can be
+  // added perpendicular to the curve's own direction rather than a fixed axis.
+  function bezierPoint(p0, c1, c2, p3, u) {
+    const mu = 1 - u;
+    return {
+      x: mu * mu * mu * p0.x + 3 * mu * mu * u * c1.x + 3 * mu * u * u * c2.x + u * u * u * p3.x,
+      y: mu * mu * mu * p0.y + 3 * mu * mu * u * c1.y + 3 * mu * u * u * c2.y + u * u * u * p3.y,
+    };
+  }
+  function bezierTangent(p0, c1, c2, p3, u) {
+    const mu = 1 - u;
+    const x = 3 * mu * mu * (c1.x - p0.x) + 6 * mu * u * (c2.x - c1.x) + 3 * u * u * (p3.x - c2.x);
+    const y = 3 * mu * mu * (c1.y - p0.y) + 6 * mu * u * (c2.y - c1.y) + 3 * u * u * (p3.y - c2.y);
+    const len = Math.sqrt(x * x + y * y) || 1;
+    return { x: x / len, y: y / len };
+  }
+
+  function buildLines() {
+    const travelSpan = CONFIG.travelMax - CONFIG.travelMin;
+    const result = [];
+
+    for (let i = 0; i < CONFIG.lineCount; i++) {
+      const fanPos = CONFIG.lineCount === 1 ? 0.5 : i / (CONFIG.lineCount - 1);
+      const travelStart = CONFIG.travelMin + i * CONFIG.travelStep;
+      // Where this line sits in the shared oscillator's cycle, expressed as
+      // a phase: travelMin maps to phase 0, travelMax maps to a full 2*PI turn.
+      const wavePhase = ((travelStart - CONFIG.travelMin) / travelSpan) * Math.PI * 2;
+
+      result.push({
+        fanPos: fanPos,
+        entryAngle: degToRad(lerp(CONFIG.entryAngles[0], CONFIG.entryAngles[1], fanPos)),
+        exitAngle: degToRad(lerp(CONFIG.exitAngles[0], CONFIG.exitAngles[1], fanPos)),
+        perp: (fanPos - 0.5) * CONFIG.bunch + (Math.random() - 0.5) * 4,
+        widthJitter: 0.75 + Math.random() * 0.6,
+        alpha: 0.45 + Math.random() * 0.4,
+        wavePhase: wavePhase,
+        accent: i % CONFIG.accentEvery === Math.floor(CONFIG.accentEvery / 2),
+      });
+    }
+    return result;
+  }
+
+  // One shared oscillator for every line, computed once per frame — so the
+  // whole bundle's base shape moves at exactly one speed. Only wavePhase
+  // (baked into each line above) should ever differ between lines.
+  function pinchAt(t, w, h) {
+    const breathX = Math.sin(t * (Math.PI * 2 / CONFIG.breathPeriod));
+    const breathY = Math.cos(t * (Math.PI * 2 / (CONFIG.breathPeriod * 1.3)));
+    return {
+      x: w * CONFIG.pinch.x + breathX * CONFIG.breathAmp,
+      y: h * CONFIG.pinch.y + breathY * CONFIG.breathAmp * 0.6,
+    };
+  }
+
+  // The line's base bezier (before the ripple is added): both ends sit far
+  // out along the line's entry/exit angle from the pinch, and both control
+  // points are pulled back in close to the pinch, bowed sideways by a fixed
+  // amount so the curve arcs smoothly instead of kinking at the pinch.
+  function baseBezierFor(line, pinch, reach) {
+    const offX = pinch.x, offY = pinch.y + line.perp;
+    const bow = CONFIG.curveAmount;
+    return {
+      p0: { x: pinch.x + Math.cos(line.entryAngle) * reach, y: pinch.y + Math.sin(line.entryAngle) * reach },
+      p3: { x: pinch.x + Math.cos(line.exitAngle) * reach, y: pinch.y + Math.sin(line.exitAngle) * reach },
+      c1: {
+        x: offX + Math.cos(line.entryAngle) * reach * 0.32 - Math.sin(line.entryAngle) * bow,
+        y: offY + Math.sin(line.entryAngle) * reach * 0.32 + Math.cos(line.entryAngle) * bow,
+      },
+      c2: {
+        x: offX + Math.cos(line.exitAngle) * reach * 0.32 - Math.sin(line.exitAngle) * bow,
+        y: offY + Math.sin(line.exitAngle) * reach * 0.32 + Math.cos(line.exitAngle) * bow,
+      },
+    };
+  }
+
+  function colorGradientFor(ctx, line, p0, p3) {
+    const baseColor = paletteColor(line.fanPos);
+    const nextColor = paletteColor(Math.min(1, line.fanPos + 0.22));
+    const grad = ctx.createLinearGradient(p0.x, p0.y, p3.x, p3.y);
+    grad.addColorStop(0, "rgba(" + baseColor.join(",") + "," + line.alpha + ")");
+    if (line.accent) grad.addColorStop(0.5, "rgba(" + CONFIG.accentColor.join(",") + "," + line.alpha + ")");
+    grad.addColorStop(1, "rgba(" + nextColor.join(",") + "," + line.alpha + ")");
+    return grad;
+  }
+
+  // Traces the line's wavy path into the current canvas path: samples the
+  // base bezier and pushes each sample sideways by a sine riding along its
+  // own length. Identical waveform for every line — the only difference
+  // between lines is wavePhase, i.e. which spot in the shared travel range
+  // this one was sampled from.
+  function tracePath(ctx, bezier, wavePhase, t) {
+    const edge = 0.06; // fraction of the length, at each end, where the ripple fades to 0
+    for (let s = 0; s <= CONFIG.waveSamples; s++) {
+      const u = s / CONFIG.waveSamples;
+      const point = bezierPoint(bezier.p0, bezier.c1, bezier.c2, bezier.p3, u);
+      const tangent = bezierTangent(bezier.p0, bezier.c1, bezier.c2, bezier.p3, u);
+      const normal = { x: -tangent.y, y: tangent.x };
+
+      const taper = Math.max(0, Math.min(1, Math.min(u / edge, (1 - u) / edge)));
+      const ripple = CONFIG.waveAmp * taper * Math.sin(CONFIG.waveFreq * u * Math.PI * 2 + wavePhase + t * CONFIG.waveSpeed);
+
+      const x = point.x + normal.x * ripple;
+      const y = point.y + normal.y * ripple;
+      if (s === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    }
+  }
+
+  function drawLine(ctx, line, pinch, t, w, h) {
+    const reach = Math.max(w, h) * 1.55;
+    const bezier = baseBezierFor(line, pinch, reach);
+
+    ctx.beginPath();
+    tracePath(ctx, bezier, line.wavePhase, t);
+    ctx.strokeStyle = colorGradientFor(ctx, line, bezier.p0, bezier.p3);
+
+    ctx.globalAlpha = 0.18;
+    ctx.lineWidth = CONFIG.glowWidth * line.widthJitter;
+    ctx.stroke();
+
+    ctx.globalAlpha = 1;
+    ctx.lineWidth = CONFIG.drawWidth * line.widthJitter;
+    ctx.stroke();
+  }
+
+  const lines = buildLines();
+
+  function resize() {
+    const rect = canvas.parentElement.getBoundingClientRect();
+    canvas.width = rect.width * dpr;
+    canvas.height = rect.height * dpr;
+  }
+  window.addEventListener("resize", resize);
+  resize();
+
+  const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  let animStart = null;
+  let rafId = null;
+
+  function draw(ts) {
+    if (animStart === null) animStart = ts;
+    const t = reduceMotion ? 0 : (ts - animStart) / 1000;
+
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    const w = canvas.width / dpr, h = canvas.height / dpr;
+    ctx.clearRect(0, 0, w, h);
+
+    const pinch = pinchAt(t, w, h);
+    for (let i = 0; i < lines.length; i++) drawLine(ctx, lines[i], pinch, t, w, h);
+
+    if (!reduceMotion) rafId = requestAnimationFrame(draw);
+  }
+  rafId = requestAnimationFrame(draw);
+
+  return {
+    stop: function () {
+      if (rafId) cancelAnimationFrame(rafId);
+      window.removeEventListener("resize", resize);
+    },
+  };
+}
+
+// Usage — canvas must sit inside a positioned container with a real size,
+// since the canvas resizes to match canvas.parentElement's box:
+// <div style="position:relative;width:100%;height:340px;">
+//   <canvas id="lines"></canvas>
+// </div>
+initFlowingLines(document.getElementById("lines"));`,
+    preview: {
+      type: "html",
+      height: 300,
+      markup: `<div style="position:relative;width:100%;height:300px;background:#fff;overflow:hidden;">
+  <canvas id="lines" style="position:absolute;inset:0;width:100%;height:100%;"></canvas>
+  <div style="position:absolute;inset:0;background:linear-gradient(100deg,#fff 0%,#fff 30%,rgba(255,255,255,0.6) 46%,rgba(255,255,255,0) 66%);pointer-events:none;"></div>
+  <div style="position:absolute;left:6%;top:50%;transform:translateY(-50%);max-width:44%;display:flex;flex-direction:column;gap:10px;">
+    <h3 style="margin:0;color:#111418;font:800 clamp(16px,2.6vw,22px)/1.15 -apple-system,sans-serif;letter-spacing:-0.02em;">One wave, many lines</h3>
+    <p style="margin:0;color:#5b6472;font:400 12px/1.5 -apple-system,sans-serif;max-width:26ch;">Every strand rides the same ripple, just phase-shifted.</p>
+  </div>
+</div>
+<script>
+  function initFlowingLines(canvas, overrides) {
+    var ctx = canvas.getContext("2d");
+    var dpr = Math.min(window.devicePixelRatio || 1, 2);
+
+    var CONFIG = Object.assign({
+      lineCount: 30,
+      pinch: { x: 0.66, y: 0.46 },
+      entryAngles: [208, 249],
+      exitAngles: [8, 58],
+      bunch: 22,
+      curveAmount: 22,
+      breathAmp: 14,
+      breathPeriod: 9,
+      waveSamples: 72,
+      waveAmp: 34,
+      waveFreq: 2.6,
+      waveSpeed: 0.55,
+      travelMin: 1,
+      travelMax: 10,
+      travelStep: 0.3,
+      drawWidth: 0.9,
+      glowWidth: 2.2,
+      accentEvery: 21,
+      palette: [
+        [134, 224, 96],
+        [74, 222, 128],
+        [45, 212, 191],
+        [34, 211, 238],
+        [59, 130, 246],
+      ],
+      accentColor: [217, 130, 245],
+    }, overrides);
+
+    function lerp(a, b, u) { return a + (b - a) * u; }
+    function degToRad(d) { return (d / 180) * Math.PI; }
+
+    function paletteColor(u) {
+      u = Math.max(0, Math.min(1, u));
+      var palette = CONFIG.palette;
+      var scaled = u * (palette.length - 1);
+      var i0 = Math.floor(scaled);
+      var i1 = Math.min(palette.length - 1, i0 + 1);
+      var f = scaled - i0;
+      var a = palette[i0], b = palette[i1];
+      return [a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f, a[2] + (b[2] - a[2]) * f];
+    }
+
+    function bezierPoint(p0, c1, c2, p3, u) {
+      var mu = 1 - u;
+      return {
+        x: mu * mu * mu * p0.x + 3 * mu * mu * u * c1.x + 3 * mu * u * u * c2.x + u * u * u * p3.x,
+        y: mu * mu * mu * p0.y + 3 * mu * mu * u * c1.y + 3 * mu * u * u * c2.y + u * u * u * p3.y,
+      };
+    }
+    function bezierTangent(p0, c1, c2, p3, u) {
+      var mu = 1 - u;
+      var x = 3 * mu * mu * (c1.x - p0.x) + 6 * mu * u * (c2.x - c1.x) + 3 * u * u * (p3.x - c2.x);
+      var y = 3 * mu * mu * (c1.y - p0.y) + 6 * mu * u * (c2.y - c1.y) + 3 * u * u * (p3.y - c2.y);
+      var len = Math.sqrt(x * x + y * y) || 1;
+      return { x: x / len, y: y / len };
+    }
+
+    function buildLines() {
+      var travelSpan = CONFIG.travelMax - CONFIG.travelMin;
+      var result = [];
+      for (var i = 0; i < CONFIG.lineCount; i++) {
+        var fanPos = CONFIG.lineCount === 1 ? 0.5 : i / (CONFIG.lineCount - 1);
+        var travelStart = CONFIG.travelMin + i * CONFIG.travelStep;
+        var wavePhase = ((travelStart - CONFIG.travelMin) / travelSpan) * Math.PI * 2;
+        result.push({
+          fanPos: fanPos,
+          entryAngle: degToRad(lerp(CONFIG.entryAngles[0], CONFIG.entryAngles[1], fanPos)),
+          exitAngle: degToRad(lerp(CONFIG.exitAngles[0], CONFIG.exitAngles[1], fanPos)),
+          perp: (fanPos - 0.5) * CONFIG.bunch + (Math.random() - 0.5) * 4,
+          widthJitter: 0.75 + Math.random() * 0.6,
+          alpha: 0.45 + Math.random() * 0.4,
+          wavePhase: wavePhase,
+          accent: i % CONFIG.accentEvery === Math.floor(CONFIG.accentEvery / 2),
+        });
+      }
+      return result;
+    }
+
+    function pinchAt(t, w, h) {
+      var breathX = Math.sin(t * (Math.PI * 2 / CONFIG.breathPeriod));
+      var breathY = Math.cos(t * (Math.PI * 2 / (CONFIG.breathPeriod * 1.3)));
+      return { x: w * CONFIG.pinch.x + breathX * CONFIG.breathAmp, y: h * CONFIG.pinch.y + breathY * CONFIG.breathAmp * 0.6 };
+    }
+
+    function baseBezierFor(line, pinch, reach) {
+      var offX = pinch.x, offY = pinch.y + line.perp;
+      var bow = CONFIG.curveAmount;
+      return {
+        p0: { x: pinch.x + Math.cos(line.entryAngle) * reach, y: pinch.y + Math.sin(line.entryAngle) * reach },
+        p3: { x: pinch.x + Math.cos(line.exitAngle) * reach, y: pinch.y + Math.sin(line.exitAngle) * reach },
+        c1: { x: offX + Math.cos(line.entryAngle) * reach * 0.32 - Math.sin(line.entryAngle) * bow, y: offY + Math.sin(line.entryAngle) * reach * 0.32 + Math.cos(line.entryAngle) * bow },
+        c2: { x: offX + Math.cos(line.exitAngle) * reach * 0.32 - Math.sin(line.exitAngle) * bow, y: offY + Math.sin(line.exitAngle) * reach * 0.32 + Math.cos(line.exitAngle) * bow },
+      };
+    }
+
+    function colorGradientFor(ctx, line, p0, p3) {
+      var baseColor = paletteColor(line.fanPos);
+      var nextColor = paletteColor(Math.min(1, line.fanPos + 0.22));
+      var grad = ctx.createLinearGradient(p0.x, p0.y, p3.x, p3.y);
+      grad.addColorStop(0, "rgba(" + baseColor.join(",") + "," + line.alpha + ")");
+      if (line.accent) grad.addColorStop(0.5, "rgba(" + CONFIG.accentColor.join(",") + "," + line.alpha + ")");
+      grad.addColorStop(1, "rgba(" + nextColor.join(",") + "," + line.alpha + ")");
+      return grad;
+    }
+
+    function tracePath(ctx, bezier, wavePhase, t) {
+      var edge = 0.06;
+      for (var s = 0; s <= CONFIG.waveSamples; s++) {
+        var u = s / CONFIG.waveSamples;
+        var point = bezierPoint(bezier.p0, bezier.c1, bezier.c2, bezier.p3, u);
+        var tangent = bezierTangent(bezier.p0, bezier.c1, bezier.c2, bezier.p3, u);
+        var normal = { x: -tangent.y, y: tangent.x };
+        var taper = Math.max(0, Math.min(1, Math.min(u / edge, (1 - u) / edge)));
+        var ripple = CONFIG.waveAmp * taper * Math.sin(CONFIG.waveFreq * u * Math.PI * 2 + wavePhase + t * CONFIG.waveSpeed);
+        var x = point.x + normal.x * ripple;
+        var y = point.y + normal.y * ripple;
+        if (s === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+      }
+    }
+
+    function drawLine(ctx, line, pinch, t, w, h) {
+      var reach = Math.max(w, h) * 1.55;
+      var bezier = baseBezierFor(line, pinch, reach);
+      ctx.beginPath();
+      tracePath(ctx, bezier, line.wavePhase, t);
+      ctx.strokeStyle = colorGradientFor(ctx, line, bezier.p0, bezier.p3);
+      ctx.globalAlpha = 0.18;
+      ctx.lineWidth = CONFIG.glowWidth * line.widthJitter;
+      ctx.stroke();
+      ctx.globalAlpha = 1;
+      ctx.lineWidth = CONFIG.drawWidth * line.widthJitter;
+      ctx.stroke();
+    }
+
+    var lines = buildLines();
+
+    function resize() {
+      var rect = canvas.parentElement.getBoundingClientRect();
+      canvas.width = rect.width * dpr;
+      canvas.height = rect.height * dpr;
+    }
+    window.addEventListener("resize", resize);
+    resize();
+
+    var reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    var animStart = null;
+
+    function draw(ts) {
+      if (animStart === null) animStart = ts;
+      var t = reduceMotion ? 0 : (ts - animStart) / 1000;
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      var w = canvas.width / dpr, h = canvas.height / dpr;
+      ctx.clearRect(0, 0, w, h);
+      var pinch = pinchAt(t, w, h);
+      for (var i = 0; i < lines.length; i++) drawLine(ctx, lines[i], pinch, t, w, h);
+      if (!reduceMotion) requestAnimationFrame(draw);
+    }
+    requestAnimationFrame(draw);
+  }
+
+  initFlowingLines(document.getElementById("lines"));
+<\/script>`,
+    },
+  },
 ];

@@ -1,7 +1,7 @@
 {
   "generatedFrom": "assets/js/data.js",
   "generatedBy": "scripts/export-index.js",
-  "count": 15,
+  "count": 16,
   "snippets": [
     {
       "id": "curve-page-transition",
@@ -206,6 +206,19 @@
       ],
       "difficulty": "Advanced",
       "description": "The same phone-mockup step showcase as a copy-paste React/Next.js component — Framer Motion crossfades the background, heading, and phone visual on every step change."
+    },
+    {
+      "id": "flowing-line-bundle",
+      "title": "Flowing Line Bundle",
+      "language": "javascript",
+      "tags": [
+        "animation",
+        "canvas",
+        "hero-background",
+        "requestanimationframe"
+      ],
+      "difficulty": "Advanced",
+      "description": "A fan of curved lines that all pass near one shared point and spread apart on either side — the same shape a lens focuses light rays into — every line rippling with the exact same wave, just sampled from a different spot in a shared travel range, so the whole bundle reads as one motion passed hand to hand rather than many independent animations."
     }
   ]
 }

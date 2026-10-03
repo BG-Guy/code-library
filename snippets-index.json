@@ -1,6 +1,6 @@
 {
-  "generatedFrom": "assets/js/data.js",
-  "generatedBy": "scripts/export-index.js",
+  "generatedFrom": "snippets/",
+  "generatedBy": "scripts/build-data.js",
   "count": 17,
   "snippets": [
     {

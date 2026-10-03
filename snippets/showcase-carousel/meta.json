@@ -1,0 +1,18 @@
+{
+  "id": "showcase-carousel",
+  "title": "Showcase Carousel",
+  "language": "javascript",
+  "tags": [
+    "animation",
+    "carousel",
+    "steps",
+    "dom",
+    "onboarding"
+  ],
+  "difficulty": "Advanced",
+  "description": "A multi-step \"how it works\" showcase where the background gradient, heading copy, and a phone-mockup visual all crossfade together on every step — dot and arrow navigation, dependency-free.",
+  "preview": {
+    "type": "html",
+    "height": 340
+  }
+}

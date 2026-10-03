@@ -1,0 +1,11 @@
+A footer that's invisible until the visitor scrolls all the way through the page, then gets uncovered like a curtain being pulled back — no scroll listener computes the reveal itself, only the footer's height needs to be tracked in JS.
+
+**How it works**
+
+1. The footer is `position: fixed; bottom: 0`, so it renders in the same spot on screen — the bottom of the browser viewport — from the very first frame, completely independent of how far the page has scrolled.
+2. The "shell" — everything above the footer — is `position: relative` with a higher `z-index` and an opaque background, so it visually covers the fixed footer for as long as the shell itself hasn't finished scrolling past.
+3. A separate, empty spacer element is inserted right after the shell, sized to exactly the footer's height. Because the spacer has no background of its own and isn't a positioned element, it's what actually creates the illusion: it reserves the scroll room the removed-from-flow footer needs, without painting anything over it — the fixed footer, being a positioned element, already paints above a plain unpositioned spacer under normal CSS stacking rules.
+4. As the page scrolls, the shell moves normally and eventually scrolls out from under the viewport; the spacer, having no paint of its own, is what lets the footer — which never moved — show through, for exactly the last stretch of scrolling equal to its own height.
+5. `initRevealFooter` measures the footer's real, responsive height with `offsetHeight` and writes it onto the spacer — once up front, again on window `resize`, and again via a `ResizeObserver` on the footer itself, so the reveal keeps lining up if the footer's content ever wraps onto a different number of lines.
+
+A tempting shortcut is making the footer `position: sticky` instead and skipping the spacer, giving the shell a matching negative `margin-bottom`. It looks reasonable but never actually reveals anything: since the footer is the very last thing on the page, the scroll position where it would "unstick" and the page's absolute scroll end are mathematically the same point, so it never gets a chance to become unstuck-and-visible before scrolling simply stops. `position: fixed` plus a real spacer element sidesteps that trap entirely.

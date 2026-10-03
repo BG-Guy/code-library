@@ -1,0 +1,11 @@
+This is the Framer Motion version of the vanilla hover-carousel link on the other tab — same illusion (two stacked copies of the label, one slides out as an identical one slides in), but the slide is now a declarative `animate` prop and the underline is driven imperatively through `useAnimate`.
+
+**How it works**
+
+1. `secondCopyStyle` positions a duplicate of `children` a full `100%` along whichever axis `direction` is — `translateY(100%)` for `"y"`, `translateX(100%)` for `"x"` — the same two-copies-in-a-track trick as the vanilla version's stacked `.hc-copy` spans, just expressed as inline style instead of a CSS class.
+2. The outer `motion.div` animates the whole track between `{[direction]: "-100%"}` and `{[direction]: "0%"}` based on `isHover` — spreading a computed property (`[direction]`) is what lets one component drive either a vertical or horizontal carousel off a single `direction` prop, instead of writing separate x/y variants.
+3. `useAnimate()` returns a `scope` ref and an imperative, awaitable `animate()` — attaching `scope` to the underline `motion.span` lets the `useEffect` step it through the same choreography as the vanilla version's underline transition, just written as two explicit `await`ed stages instead of one CSS `transition` on several properties: grow a hidden dot into a full-width bar on hover (`animateIn`), or shrink it back into a dot and fade it out on hover-out (`animateOut`). Awaiting each stage keeps the sequence from overlapping itself if `isHover` flips again mid-animation.
+4. `left: "calc(50% - 2px)"` centers the resting 4px dot without reaching for a `transform` — since `width`, `height`, and `left` are already plain values Framer Motion is animating directly, keeping the centering math in `calc()` avoids fighting a separate transform over the same element.
+5. `color` sets the underline's `backgroundColor` straight through inline `style`, exactly like the vanilla version passes `color` into its own inline `background` — swapping the accent per link needs no extra CSS either way.
+
+Install `framer-motion` as the one dependency, then wrap any label in `<HoverCarouselWrapper direction="y" isLink color="#4f46e5">` — pass `isLink` for the underline, or leave it off for a carousel with no indicator at all.

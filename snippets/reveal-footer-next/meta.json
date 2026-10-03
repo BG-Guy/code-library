@@ -1,0 +1,19 @@
+{
+  "id": "reveal-footer-next",
+  "title": "Reveal Footer (Next.js)",
+  "language": "react",
+  "tags": [
+    "layout",
+    "scroll",
+    "footer",
+    "css-tricks",
+    "next.js"
+  ],
+  "difficulty": "Beginner",
+  "description": "The same curtain-style footer reveal as a copy-paste React/Next.js component — wrap your page content and footer content as props and a small `useEffect` keeps a spacer in sync with the footer's real height.",
+  "preview": {
+    "type": "html",
+    "height": 420,
+    "reactRuntime": true
+  }
+}

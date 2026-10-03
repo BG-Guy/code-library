@@ -1,0 +1,49 @@
+<div class="relative mx-auto h-64 w-full max-w-sm overflow-hidden rounded-xl bg-slate-100">
+  <div class="page-content flex h-full w-full items-center justify-center bg-indigo-50 text-indigo-900" id="content">
+    <p class="text-lg font-semibold" id="label">Page A</p>
+  </div>
+  <div class="cover-panel bg-slate-900"></div>
+</div>
+<div class="mt-4 flex justify-center">
+  <button id="go" class="rounded-full bg-indigo-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-indigo-700">Go to Page B</button>
+</div>
+<style>
+  .page-content { transition: transform .6s cubic-bezier(.76,0,.24,1), opacity .6s ease; }
+  .page-content.is-leaving { transform: translateY(-24px) scale(.94); opacity: .6; }
+  .cover-panel { position: absolute; inset: 0; transform: translateY(100%); transition: transform .6s cubic-bezier(.76,0,.24,1); }
+  .cover-panel.is-covering { transform: translateY(0); }
+</style>
+<script>
+  let showingB = false;
+  const content = document.getElementById("content");
+  const label = document.getElementById("label");
+  const panel = document.querySelector(".cover-panel");
+  const btn = document.getElementById("go");
+
+  function innerTransition(swapContent, duration) {
+    return new Promise((resolve) => {
+      content.classList.add("is-leaving");
+      panel.classList.add("is-covering");
+      setTimeout(() => {
+        swapContent();
+        content.classList.remove("is-leaving");
+        requestAnimationFrame(() => panel.classList.remove("is-covering"));
+        setTimeout(resolve, duration);
+      }, duration);
+    });
+  }
+
+  btn.addEventListener("click", async () => {
+    btn.disabled = true;
+    await innerTransition(() => {
+      showingB = !showingB;
+      label.textContent = showingB ? "Page B" : "Page A";
+      content.classList.toggle("bg-indigo-50", !showingB);
+      content.classList.toggle("text-indigo-900", !showingB);
+      content.classList.toggle("bg-amber-50", showingB);
+      content.classList.toggle("text-amber-900", showingB);
+      btn.textContent = showingB ? "Back to Page A" : "Go to Page B";
+    }, 550);
+    btn.disabled = false;
+  });
+</script>

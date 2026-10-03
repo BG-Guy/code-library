@@ -1,0 +1,20 @@
+{
+  "id": "sticky-cursor-next",
+  "title": "Sticky Cursor (Next.js)",
+  "language": "react",
+  "tags": [
+    "cursor",
+    "hover",
+    "interaction",
+    "touch",
+    "framer-motion",
+    "next.js"
+  ],
+  "difficulty": "Advanced",
+  "description": "The same magnetic sticky cursor as a copy-paste React/Next.js component — pass it a list of target refs and Framer Motion's spring drives the follow, rotate, and stretch.",
+  "preview": {
+    "type": "html",
+    "height": 320,
+    "reactRuntime": true
+  }
+}

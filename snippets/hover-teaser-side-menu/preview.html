@@ -1,0 +1,94 @@
+<div class="relative mx-auto h-72 w-full max-w-md overflow-hidden rounded-xl bg-slate-900 text-white" id="menuDemo"></div>
+<script>
+  function ensureStyles() {
+    if (document.getElementById("htm-styles")) return;
+    var style = document.createElement("style");
+    style.id = "htm-styles";
+    style.textContent =
+      ".htm-teaser-layer { position: absolute; inset: 0; z-index: 0; overflow: hidden; }" +
+      ".htm-teaser { position: absolute; top: 0; left: 0; width: 50%; height: 100%; display: flex; align-items: center; justify-content: center; font-weight: 600; transform: translateX(0%); transition: transform .5s cubic-bezier(.65,0,.35,1); }" +
+      ".htm-teaser.is-active { transform: translateX(100%); }" +
+      ".htm-nav { position: relative; z-index: 10; display: flex; flex-direction: column; justify-content: center; gap: 1.25rem; width: 50%; height: 100%; padding: 0 2rem; background: rgba(15,23,42,0.95); }" +
+      ".htm-link { position: relative; display: flex; align-items: center; gap: .5rem; color: #fff; }" +
+      ".htm-dot { width: 6px; height: 6px; border-radius: 999px; background: currentColor; opacity: 0; transform: translateX(0); transition: opacity .3s ease, transform .3s ease; }" +
+      ".htm-link.is-active .htm-dot { opacity: .6; transform: translateX(10px); }";
+    document.head.appendChild(style);
+  }
+
+  function initHoverTeaserMenu(container, links) {
+    ensureStyles();
+
+    var teasersHTML = links.map(function (l) {
+      return '<div class="htm-teaser" data-teaser="' + l.id + '" style="background:' + l.color + '">' + l.label + '</div>';
+    }).join("");
+
+    var linksHTML = links.map(function (l) {
+      return '<a href="#" class="htm-link" data-link="' + l.id + '">' +
+        '<span>' + l.label + '</span><span class="htm-dot"></span></a>';
+    }).join("");
+
+    container.innerHTML =
+      '<div class="htm-teaser-layer">' + teasersHTML + '</div>' +
+      '<nav class="htm-nav">' + linksHTML + '</nav>';
+
+    var primed = null;
+
+    container.querySelectorAll("[data-link]").forEach(function (link) {
+      var id = link.dataset.link;
+      var teaser = container.querySelector('[data-teaser="' + id + '"]');
+      var lastPointerType = "mouse";
+
+      function enter() {
+        link.classList.add("is-active");
+        teaser.classList.add("is-active");
+      }
+      function leave() {
+        link.classList.remove("is-active");
+        teaser.classList.remove("is-active");
+      }
+
+      link.addEventListener("pointerdown", function (e) {
+        lastPointerType = e.pointerType;
+      });
+      link.addEventListener("pointerenter", function (e) {
+        if (e.pointerType === "mouse") enter();
+      });
+      link.addEventListener("pointerleave", function (e) {
+        if (e.pointerType === "mouse") leave();
+      });
+
+      link.addEventListener("click", function (e) {
+        // This demo's links have nowhere real to go, so every tap is
+        // intercepted — a real project would drop this preventDefault on
+        // the second tap and let the click become a real navigation.
+        e.preventDefault();
+        if (lastPointerType !== "touch") return;
+
+        if (primed && primed.link !== link) {
+          primed.leave();
+          primed = null;
+        }
+        if (!primed) {
+          enter();
+          primed = { link: link, leave: leave };
+        } else {
+          leave();
+          primed = null;
+        }
+      });
+    });
+
+    document.addEventListener("click", function (e) {
+      if (primed && !container.contains(e.target)) {
+        primed.leave();
+        primed = null;
+      }
+    });
+  }
+
+  initHoverTeaserMenu(document.getElementById("menuDemo"), [
+    { id: "beaches", label: "Beaches", color: "linear-gradient(135deg,#0ea5e9,#0369a1)" },
+    { id: "mountains", label: "Mountains", color: "linear-gradient(135deg,#22c55e,#15803d)" },
+    { id: "cities", label: "Cities", color: "linear-gradient(135deg,#f59e0b,#b45309)" }
+  ]);
+</script>

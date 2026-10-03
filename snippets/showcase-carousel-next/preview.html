@@ -1,0 +1,91 @@
+<div id="root" style="max-width:640px;margin:0 auto;"></div>
+<style>
+  body { margin:0; background:#0b0b12; }
+</style>
+<script>
+  var e = React.createElement;
+  var Motion = window.Motion;
+
+  var steps = [
+    { badge: '01', color: '#FF6B35', bg: 'linear-gradient(160deg,#2a1204 0%,#0d0500 100%)', heading: 'One Tap Books It', desc: 'Send a link, they pick a time.', screen: 'Booked' },
+    { badge: '02', color: '#38bdf8', bg: 'linear-gradient(160deg,#072030 0%,#020c12 100%)', heading: 'We\'re On Our Way', desc: 'A live arrival alert lands 30 minutes out.', screen: 'On the way' },
+    { badge: '03', color: '#4ade80', bg: 'linear-gradient(160deg,#0a1a08 0%,#030804 100%)', heading: 'Paid In One Tap', desc: 'A secure payment link, done in seconds.', screen: '$185.00' }
+  ];
+
+  function PhoneScreen(props) {
+    return e('div', {
+      style: {
+        width: 108, height: 170, borderRadius: 20,
+        background: 'linear-gradient(160deg,#2c2c2e,#1c1c1e)',
+        boxShadow: '0 0 0 1px rgba(255,255,255,0.12), 0 14px 30px rgba(0,0,0,0.55)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        color: '#fff', fontSize: 12, fontWeight: 700
+      }
+    }, props.children);
+  }
+
+  function StepShowcaseDemo() {
+    var state = React.useState(0);
+    var index = state[0], setIndex = state[1];
+    var step = steps[index];
+
+    function goTo(i) {
+      if (i < 0 || i >= steps.length) return;
+      setIndex(i);
+    }
+
+    return e('div', {
+      style: { position: 'relative', minHeight: 300, borderRadius: 20, overflow: 'hidden', color: '#fff', fontFamily: 'Inter, system-ui, sans-serif' }
+    },
+      e(Motion.motion.div, {
+        key: 'bg-' + index,
+        style: { position: 'absolute', inset: 0, background: step.bg },
+        initial: { opacity: 0.4 },
+        animate: { opacity: 1 },
+        transition: { duration: 0.5 }
+      }),
+      e('div', { style: { position: 'relative', zIndex: 1, display: 'flex', alignItems: 'center', gap: 20, padding: '28px 24px 64px' } },
+        e('div', { style: { flex: '0 0 50%', display: 'flex', flexDirection: 'column', gap: 8 } },
+          e('span', {
+            style: { width: 30, height: 30, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 800, background: step.color }
+          }, step.badge),
+          e(Motion.motion.div, {
+            key: 'text-' + index,
+            initial: { y: 14, opacity: 0 },
+            animate: { y: 0, opacity: 1 },
+            transition: { duration: 0.4 }
+          },
+            e('h3', { style: { margin: '6px 0 4px', fontSize: 17, fontWeight: 800 } }, step.heading),
+            e('p', { style: { margin: 0, fontSize: 12, color: 'rgba(255,255,255,0.7)' } }, step.desc)
+          )
+        ),
+        e('div', { style: { flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 160 } },
+          e(Motion.motion.div, { key: 'phone-' + index, initial: { opacity: 0 }, animate: { opacity: 1 }, transition: { duration: 0.35 } },
+            e(PhoneScreen, null, step.screen)
+          )
+        )
+      ),
+      e('div', { style: { position: 'absolute', left: 0, right: 0, bottom: 16, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10 } },
+        e('button', {
+          onClick: function () { goTo(index - 1); },
+          disabled: index === 0,
+          style: { width: 28, height: 28, borderRadius: '50%', border: '1px solid rgba(255,255,255,0.15)', background: 'rgba(255,255,255,0.06)', color: '#fff', cursor: 'pointer', opacity: index === 0 ? 0.25 : 1 }
+        }, '‹'),
+        steps.map(function (_, i) {
+          return e('button', {
+            key: i,
+            onClick: function () { goTo(i); },
+            style: { width: i === index ? 16 : 5, height: 5, borderRadius: 3, border: 'none', background: i === index ? '#fff' : 'rgba(255,255,255,0.25)', cursor: 'pointer', transition: 'all .3s' }
+          });
+        }),
+        e('button', {
+          onClick: function () { goTo(index + 1); },
+          disabled: index === steps.length - 1,
+          style: { width: 28, height: 28, borderRadius: '50%', border: '1px solid rgba(255,255,255,0.15)', background: 'rgba(255,255,255,0.06)', color: '#fff', cursor: 'pointer', opacity: index === steps.length - 1 ? 0.25 : 1 }
+        }, '›')
+      )
+    );
+  }
+
+  ReactDOM.createRoot(document.getElementById('root')).render(e(StepShowcaseDemo));
+</script>

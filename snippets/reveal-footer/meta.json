@@ -1,0 +1,17 @@
+{
+  "id": "reveal-footer",
+  "title": "Reveal Footer",
+  "language": "javascript",
+  "tags": [
+    "layout",
+    "scroll",
+    "footer",
+    "css-tricks"
+  ],
+  "difficulty": "Beginner",
+  "description": "A footer that's completely invisible until visitors scroll all the way through the page, then gets uncovered like a curtain lifting away — a fixed footer, an opaque content wrapper on top of it, and one spacer element kept in sync with the footer's real height.",
+  "preview": {
+    "type": "html",
+    "height": 420
+  }
+}

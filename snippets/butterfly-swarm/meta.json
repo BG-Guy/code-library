@@ -1,0 +1,18 @@
+{
+  "id": "butterfly-swarm",
+  "title": "Butterfly Swarm",
+  "language": "javascript",
+  "tags": [
+    "animation",
+    "canvas",
+    "particles",
+    "morphing",
+    "requestanimationframe"
+  ],
+  "difficulty": "Advanced",
+  "description": "A cloud of particles streams around a butterfly, then swarms together into a triangle and back — both shapes built so their mirror is exactly the reverse of their own path, which makes the formation perfectly symmetric and evenly spaced without any special-casing, while every particle orbits in one unbroken direction.",
+  "preview": {
+    "type": "html",
+    "height": 380
+  }
+}

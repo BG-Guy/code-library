@@ -1,0 +1,17 @@
+{
+  "id": "hover-teaser-side-menu",
+  "title": "Side Menu with Hover Image Teasers",
+  "language": "javascript",
+  "tags": [
+    "animation",
+    "navigation",
+    "hover-effects",
+    "menu"
+  ],
+  "difficulty": "Advanced",
+  "description": "A side-menu nav where hovering a link slides a full-size themed panel out from behind the menu — a preview of where that link leads before you click it.",
+  "preview": {
+    "type": "html",
+    "height": 320
+  }
+}

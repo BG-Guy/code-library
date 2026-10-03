@@ -1,0 +1,109 @@
+<nav class="flex items-center justify-center gap-10 p-10" id="demoNav">
+  <a href="#" class="text-sm font-semibold text-slate-800">Home</a>
+  <a href="#" class="text-sm font-semibold text-slate-800">Work</a>
+  <a href="#" class="text-sm font-semibold text-slate-800">Contact</a>
+</nav>
+<style>
+  #demoNav a { position: relative; }
+  .du-dot {
+    position: absolute;
+    bottom: -6px;
+    left: calc(50% - 3px);
+    width: 6px;
+    height: 6px;
+    border-radius: 999px;
+    opacity: 0;
+    transform: translateY(6px);
+    pointer-events: none;
+    background: #4f46e5;
+  }
+</style>
+<script>
+  function initDotUnderline(link) {
+    var dot = document.createElement("span");
+    dot.className = "du-dot";
+    link.appendChild(dot);
+
+    var currentAnimation = null;
+
+    function grow() {
+      if (currentAnimation) currentAnimation.cancel();
+      currentAnimation = dot.animate(
+        [
+          { opacity: 0, transform: "translateY(6px)" },
+          { opacity: 1, transform: "translateY(0px)" }
+        ],
+        { duration: 150, easing: "ease-out", fill: "forwards" }
+      );
+      currentAnimation.finished.then(function () {
+        currentAnimation = dot.animate(
+          [
+            { width: "6px", height: "6px", left: "calc(50% - 3px)", borderRadius: "999px" },
+            { width: "100%", height: "2px", left: "0%", borderRadius: "0px" }
+          ],
+          { duration: 200, easing: "ease-in-out", fill: "forwards" }
+        );
+      }).catch(function () {});
+    }
+
+    function shrink() {
+      if (currentAnimation) currentAnimation.cancel();
+      currentAnimation = dot.animate(
+        [
+          { width: "100%", height: "2px", left: "0%", borderRadius: "0px" },
+          { width: "6px", height: "6px", left: "calc(50% - 3px)", borderRadius: "999px" }
+        ],
+        { duration: 200, easing: "ease-in-out", fill: "forwards" }
+      );
+      currentAnimation.finished.then(function () {
+        currentAnimation = dot.animate(
+          [
+            { opacity: 1, transform: "translateY(0px)" },
+            { opacity: 0, transform: "translateY(6px)" }
+          ],
+          { duration: 150, easing: "ease-out", fill: "forwards" }
+        );
+      }).catch(function () {});
+    }
+
+    var lastPointerType = "mouse";
+    var isPrimed = false;
+
+    link.addEventListener("pointerdown", function (e) {
+      lastPointerType = e.pointerType;
+    });
+    link.addEventListener("pointerenter", function (e) {
+      if (e.pointerType === "mouse") grow();
+    });
+    link.addEventListener("pointerleave", function (e) {
+      if (e.pointerType === "mouse") shrink();
+    });
+
+    link.addEventListener("click", function (e) {
+      // This demo's links have nowhere real to go, so every tap is
+      // intercepted — a real project would drop this preventDefault on
+      // the second tap and let the click become a real navigation.
+      e.preventDefault();
+      if (lastPointerType !== "touch") return;
+
+      if (!isPrimed) {
+        grow();
+        isPrimed = true;
+      } else {
+        shrink();
+        isPrimed = false;
+      }
+    });
+
+    document.addEventListener("click", function (e) {
+      if (isPrimed && !link.contains(e.target)) {
+        shrink();
+        isPrimed = false;
+      }
+    });
+  }
+
+  document.querySelectorAll("#demoNav a").forEach(function (link) {
+    initDotUnderline(link);
+  });
+</script>

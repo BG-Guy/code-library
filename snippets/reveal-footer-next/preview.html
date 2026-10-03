@@ -1,0 +1,60 @@
+<div id="root" style="max-width:360px;margin:0 auto;"></div>
+<style>
+  body { margin: 0; background: #f8fafc; }
+</style>
+<script>
+  var e = React.createElement;
+
+  function RevealFooterDemo() {
+    var progress = React.useState(0);
+    var setProgress = progress[1];
+    progress = progress[0];
+
+    var shellRef = React.useRef(null);
+    var demoRef = React.useRef(null);
+    var footerH = 110;
+
+    var maxTravel = 0;
+    if (shellRef.current && demoRef.current) {
+      maxTravel = Math.max(0, shellRef.current.offsetHeight - (demoRef.current.offsetHeight - footerH));
+    }
+    var translateY = -(progress / 100) * maxTravel;
+
+    return e(
+      "div",
+      null,
+      e(
+        "div",
+        { ref: demoRef, style: { position: "relative", overflow: "hidden", height: 240, borderRadius: 14, border: "1px solid #e2e8f0" } },
+        e(
+          "div",
+          { ref: shellRef, style: { position: "absolute", top: 0, left: 0, right: 0, zIndex: 1, background: "#fff", transform: "translateY(" + translateY + "px)" } },
+          e("div", { style: { height: 160, display: "flex", alignItems: "center", justifyContent: "center", background: "#eef2ff", color: "#3730a3", font: "600 13px -apple-system,sans-serif" } }, "Page content"),
+          e("div", { style: { height: 160, display: "flex", alignItems: "center", justifyContent: "center", background: "#fff7ed", color: "#9a3412", font: "600 13px -apple-system,sans-serif" } }, "Keep scrolling…")
+        ),
+        e(
+          "div",
+          { style: { position: "absolute", left: 0, right: 0, bottom: 0, height: footerH, zIndex: 0, display: "flex", alignItems: "center", justifyContent: "center", background: "#0f172a", color: "#fff", font: "600 13px -apple-system,sans-serif" } },
+          "👋 Footer revealed!"
+        )
+      ),
+      e(
+        "div",
+        { style: { marginTop: 12, display: "flex", alignItems: "center", gap: 10, font: "600 12px -apple-system,sans-serif", color: "#475569" } },
+        e("span", null, "Scroll progress"),
+        e("input", {
+          type: "range", min: 0, max: 100, value: progress,
+          onChange: function (ev) { setProgress(Number(ev.target.value)); },
+          style: { flex: 1, accentColor: "#4f46e5" }
+        })
+      ),
+      e(
+        "p",
+        { style: { marginTop: 8, font: "500 11px -apple-system,sans-serif", color: "#94a3b8" } },
+        "The real component is driven by actual page scroll — the slider stands in for that here so the demo works inside this preview frame."
+      )
+    );
+  }
+
+  ReactDOM.createRoot(document.getElementById("root")).render(e(RevealFooterDemo));
+</script>

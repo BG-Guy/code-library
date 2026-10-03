@@ -1,0 +1,20 @@
+{
+  "id": "infinite-text-parallax-next",
+  "title": "Infinite Text Parallax (Next.js)",
+  "language": "react",
+  "tags": [
+    "scroll",
+    "animation",
+    "parallax",
+    "marquee",
+    "framer-motion",
+    "next.js"
+  ],
+  "difficulty": "Advanced",
+  "description": "The same scroll-linked marquee as a copy-paste React/Next.js component — drop it in components/ui, pass it a list of rows, and Framer Motion drives the transform off real scroll progress.",
+  "preview": {
+    "type": "html",
+    "height": 360,
+    "reactRuntime": true
+  }
+}

@@ -1,0 +1,17 @@
+{
+  "id": "sticky-cursor",
+  "title": "Sticky Cursor",
+  "language": "javascript",
+  "tags": [
+    "cursor",
+    "hover",
+    "interaction",
+    "touch"
+  ],
+  "difficulty": "Advanced",
+  "description": "A custom round cursor that snaps to the center of any hoverable element and stretches toward the pointer like a magnet — includes a draggable touch handle so the effect works without a mouse.",
+  "preview": {
+    "type": "html",
+    "height": 400
+  }
+}

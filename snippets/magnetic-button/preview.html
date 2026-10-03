@@ -1,0 +1,62 @@
+<script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js"></script>
+<div style="max-width:480px;margin:0 auto;padding:30px 16px 8px;display:flex;justify-content:space-around;align-items:center;" id="stage">
+  <button class="magnetic-button"><span>Home</span></button>
+  <button class="magnetic-button"><span>Work</span></button>
+  <button class="magnetic-button"><span>Contact</span></button>
+</div>
+<p style="max-width:480px;margin:4px auto 0;text-align:center;font:500 11px -apple-system,sans-serif;color:#94a3b8;">Move your cursor near a button — it pulls in, then springs back elastically once you move away.</p>
+<style>
+  body { margin: 0; background: #f0f0f0; font-family: -apple-system, sans-serif; }
+  .magnetic-button {
+    position: relative;
+    width: 96px;
+    height: 96px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid #1e293b;
+    border-radius: 50%;
+    background: #fff;
+    font-size: 13px;
+    font-weight: 700;
+    color: #1e293b;
+    cursor: pointer;
+  }
+  .magnetic-button span {
+    position: relative;
+    display: inline-block;
+  }
+</style>
+<script>
+  var radius = 90;
+  var items = Array.prototype.map.call(document.querySelectorAll(".magnetic-button"), function (button) {
+    return { button: button, text: button.querySelector("span"), wasInRadius: false };
+  });
+
+  function resetMagnet(button, text) {
+    gsap.to(button, { x: 0, y: 0, duration: 2.5, ease: "elastic.out(1.2, 0.2)", overwrite: "auto" });
+    if (text) gsap.to(text, { x: 0, y: 0, duration: 0.5, ease: "power3.out", overwrite: "auto" });
+  }
+
+  document.addEventListener("mousemove", function (e) {
+    items.forEach(function (item) {
+      var rect = item.button.getBoundingClientRect();
+      var centerX = rect.left + rect.width / 2;
+      var centerY = rect.top + rect.height / 2;
+      var distance = Math.hypot(e.clientX - centerX, e.clientY - centerY);
+      var isInRadius = distance < radius;
+
+      if (isInRadius) {
+        var offsetX = e.clientX - centerX;
+        var offsetY = e.clientY - centerY;
+
+        gsap.to(item.button, { x: offsetX * 0.5, y: offsetY * 0.5, duration: 0.5, ease: "power3.out", overwrite: "auto" });
+        if (item.text) gsap.to(item.text, { x: offsetX * 0.2, y: offsetY * 0.2, duration: 0.5, ease: "power3.out", overwrite: "auto" });
+      } else if (item.wasInRadius) {
+        resetMagnet(item.button, item.text);
+      }
+
+      item.wasInRadius = isInRadius;
+    });
+  });
+</script>

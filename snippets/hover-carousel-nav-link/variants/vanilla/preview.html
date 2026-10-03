@@ -1,0 +1,84 @@
+<nav class="flex items-center justify-center gap-8 p-10" id="demoNav">
+  <a href="#" class="text-sm font-semibold text-slate-800">Home</a>
+  <a href="#" class="text-sm font-semibold text-slate-800">Work</a>
+  <a href="#" class="text-sm font-semibold text-slate-800">Contact</a>
+</nav>
+<script>
+  function ensureStyles() {
+    if (document.getElementById("hc-styles")) return;
+    var style = document.createElement("style");
+    style.id = "hc-styles";
+    style.textContent =
+      ".hc-link { position: relative; display: inline-flex; cursor: pointer; }" +
+      ".hc-viewport { overflow: hidden; display: inline-block; height: 1.25em; line-height: 1.25em; }" +
+      ".hc-track { display: flex; flex-direction: column; height: 200%; transition: transform 0.4s cubic-bezier(0.65,0,0.35,1); }" +
+      ".hc-copy { display: flex; flex: 1 0 50%; align-items: center; justify-content: center; }" +
+      ".hc-underline { position: absolute; left: 50%; bottom: -6px; width: 4px; height: 4px; border-radius: 999px; opacity: 0; transform: translateX(-50%); transition: width .25s cubic-bezier(.6,.05,.15,.95), height .25s ease, border-radius .25s ease, left .25s ease, opacity .25s ease; }" +
+      ".hc-underline.is-active { left: 0; width: 100%; height: 2px; border-radius: 0; opacity: 1; transform: translateX(0); }";
+    document.head.appendChild(style);
+  }
+
+  function initHoverCarouselLink(link, color) {
+    ensureStyles();
+    var original = link.innerHTML;
+    link.classList.add("hc-link");
+    link.innerHTML =
+      '<span class="hc-viewport"><span class="hc-track">' +
+      '<span class="hc-copy">' + original + '</span>' +
+      '<span class="hc-copy">' + original + '</span>' +
+      '</span></span>' +
+      '<span class="hc-underline" style="background:' + color + '"></span>';
+
+    var track = link.querySelector(".hc-track");
+    var underline = link.querySelector(".hc-underline");
+
+    function enter() {
+      track.style.transform = "translateY(-50%)";
+      underline.classList.add("is-active");
+    }
+    function leave() {
+      track.style.transform = "";
+      underline.classList.remove("is-active");
+    }
+
+    var lastPointerType = "mouse";
+    var isPrimed = false;
+
+    link.addEventListener("pointerdown", function (e) {
+      lastPointerType = e.pointerType;
+    });
+    link.addEventListener("pointerenter", function (e) {
+      if (e.pointerType === "mouse") enter();
+    });
+    link.addEventListener("pointerleave", function (e) {
+      if (e.pointerType === "mouse") leave();
+    });
+
+    link.addEventListener("click", function (e) {
+      // This demo's links have nowhere real to go, so every tap is
+      // intercepted — a real project would drop this preventDefault on
+      // the second tap and let the click become a real navigation.
+      e.preventDefault();
+      if (lastPointerType !== "touch") return;
+
+      if (!isPrimed) {
+        enter();
+        isPrimed = true;
+      } else {
+        leave();
+        isPrimed = false;
+      }
+    });
+
+    document.addEventListener("click", function (e) {
+      if (isPrimed && !link.contains(e.target)) {
+        leave();
+        isPrimed = false;
+      }
+    });
+  }
+
+  document.querySelectorAll("#demoNav a").forEach(function (link) {
+    initHoverCarouselLink(link, "#4f46e5");
+  });
+</script>

@@ -1,0 +1,40 @@
+{
+  "id": "hover-carousel-nav-link",
+  "title": "Hover Carousel Nav Link",
+  "language": "javascript",
+  "tags": [
+    "animation",
+    "navigation",
+    "hover-effects",
+    "dom",
+    "framer-motion",
+    "next.js"
+  ],
+  "difficulty": "Intermediate",
+  "description": "Turn any nav link into a two-line 'carousel' that rolls a duplicate label in on hover, with a dot-to-bar underline animating underneath — as dependency-free vanilla JS, or a Framer Motion React/Next.js component. Wire up a whole nav bar with one call per link either way.",
+  "languages": [
+    "javascript",
+    "react"
+  ],
+  "variants": [
+    {
+      "key": "vanilla",
+      "label": "Vanilla JS",
+      "language": "javascript",
+      "preview": {
+        "type": "html",
+        "height": 150
+      }
+    },
+    {
+      "key": "react",
+      "label": "React / Next.js",
+      "language": "react",
+      "preview": {
+        "type": "html",
+        "height": 150,
+        "reactRuntime": true
+      }
+    }
+  ]
+}

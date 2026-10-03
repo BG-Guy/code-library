@@ -1,0 +1,180 @@
+<div id="demo" style="max-width:640px;margin:0 auto;"></div>
+<style>
+  body { margin:0; background:#0b0b12; }
+  .ssw { position: relative; overflow: hidden; border-radius: 20px; min-height: 300px; color: #fff; font-family: Inter, system-ui, sans-serif; }
+  .ssw-bg { position: absolute; inset: 0; transition: opacity 0.6s ease; }
+  .ssw-bg[data-layer="b"] { opacity: 0; }
+  .ssw-inner { position: relative; z-index: 1; }
+  .ssw-layout { display: flex; align-items: center; gap: 28px; padding: 32px 28px 76px; }
+  .ssw-text-col { flex: 0 0 48%; display: flex; flex-direction: column; gap: 10px; }
+  .ssw-badge { width: 34px; height: 34px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 12px; transition: background-color 0.5s ease; }
+  .ssw-heading-mask, .ssw-desc-mask { overflow: hidden; }
+  .ssw-heading { margin: 0; font-size: 20px; line-height: 1.2; font-weight: 800; transform: translateY(110%); transition: transform 0.55s cubic-bezier(0.22,1,0.36,1); }
+  .ssw-heading.visible { transform: translateY(0); }
+  .ssw-heading.exiting { transform: translateY(-110%); }
+  .ssw-desc { margin: 0; font-size: 13px; line-height: 1.5; color: rgba(255,255,255,0.7); transform: translateY(110%); transition: transform 0.55s cubic-bezier(0.22,1,0.36,1) 0.05s; }
+  .ssw-desc.visible { transform: translateY(0); }
+  .ssw-desc.exiting { transform: translateY(-110%); }
+  .ssw-visual-col { flex: 1; position: relative; min-height: 170px; display: flex; align-items: center; justify-content: center; }
+  .ssw-slide { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; opacity: 0; transition: opacity 0.4s ease; pointer-events: none; }
+  .ssw-slide.active { opacity: 1; pointer-events: auto; }
+  .ssw-phone { width: 108px; height: 170px; border-radius: 20px; background: linear-gradient(160deg,#2c2c2e,#1c1c1e); box-shadow: 0 0 0 1px rgba(255,255,255,0.12), 0 14px 30px rgba(0,0,0,0.55); position: relative; }
+  .ssw-screen { position: absolute; inset: 5px; border-radius: 15px; overflow: hidden; display: flex; align-items: center; justify-content: center; }
+  .ssw-nav { display: flex; align-items: center; justify-content: center; gap: 12px; position: absolute; left: 0; right: 0; bottom: 16px; }
+  .ssw-nav-btn { width: 30px; height: 30px; border-radius: 50%; border: 1px solid rgba(255,255,255,0.15); background: rgba(255,255,255,0.06); color: rgba(255,255,255,0.8); font-size: 15px; cursor: pointer; }
+  .ssw-nav-btn:disabled { opacity: 0.25; cursor: default; }
+  .ssw-dots { display: flex; gap: 6px; }
+  .ssw-dot { width: 5px; height: 5px; border-radius: 3px; border: none; background: rgba(255,255,255,0.25); cursor: pointer; transition: all 0.3s; padding: 0; }
+  .ssw-dot.active { width: 16px; background: #fff; }
+</style>
+<script>
+  function createStepShowcase(root, steps) {
+    root.classList.add('ssw');
+    root.innerHTML =
+      '<div class="ssw-bg" data-layer="a"></div>' +
+      '<div class="ssw-bg" data-layer="b"></div>' +
+      '<div class="ssw-inner">' +
+        '<div class="ssw-layout">' +
+          '<div class="ssw-text-col">' +
+            '<span class="ssw-badge"></span>' +
+            '<div class="ssw-heading-mask"><h3 class="ssw-heading"></h3></div>' +
+            '<div class="ssw-desc-mask"><p class="ssw-desc"></p></div>' +
+          '</div>' +
+          '<div class="ssw-visual-col"></div>' +
+        '</div>' +
+        '<div class="ssw-nav">' +
+          '<button class="ssw-nav-btn" data-dir="prev" aria-label="Previous step">&#8249;</button>' +
+          '<div class="ssw-dots" role="tablist"></div>' +
+          '<button class="ssw-nav-btn" data-dir="next" aria-label="Next step">&#8250;</button>' +
+        '</div>' +
+      '</div>';
+
+    var bgA = root.querySelector('[data-layer="a"]');
+    var bgB = root.querySelector('[data-layer="b"]');
+    var badgeEl = root.querySelector('.ssw-badge');
+    var headingEl = root.querySelector('.ssw-heading');
+    var descEl = root.querySelector('.ssw-desc');
+    var visualCol = root.querySelector('.ssw-visual-col');
+    var dotsWrap = root.querySelector('.ssw-dots');
+    var prevBtn = root.querySelector('[data-dir="prev"]');
+    var nextBtn = root.querySelector('[data-dir="next"]');
+
+    var current = 0, bgActive = 'a', busy = false;
+    var slides = [], dots = [];
+
+    steps.forEach(function (step, i) {
+      var slide = document.createElement('div');
+      slide.className = 'ssw-slide' + (i === 0 ? ' active' : '');
+      slide.innerHTML = step.screenHTML || '';
+      visualCol.appendChild(slide);
+      slides.push(slide);
+
+      var dot = document.createElement('button');
+      dot.className = 'ssw-dot' + (i === 0 ? ' active' : '');
+      dot.setAttribute('role', 'tab');
+      dot.setAttribute('aria-label', 'Step ' + (i + 1));
+      dot.addEventListener('click', function () { goTo(i); });
+      dotsWrap.appendChild(dot);
+      dots.push(dot);
+    });
+
+    bgA.style.background = steps[0].bg;
+    bgB.style.background = steps[0].bg;
+    bgA.style.opacity = '1';
+
+    function paint(step) {
+      badgeEl.textContent = step.badge;
+      badgeEl.style.background = step.color;
+      headingEl.textContent = step.heading;
+      descEl.textContent = step.desc;
+    }
+
+    paint(steps[0]);
+    requestAnimationFrame(function () {
+      headingEl.classList.add('visible');
+      descEl.classList.add('visible');
+    });
+    sync();
+
+    function goTo(idx) {
+      if (idx === current || busy || idx < 0 || idx >= steps.length) return;
+      busy = true;
+      var next = steps[idx];
+
+      headingEl.classList.remove('visible');
+      headingEl.classList.add('exiting');
+      descEl.classList.remove('visible');
+      descEl.classList.add('exiting');
+
+      var incoming = bgActive === 'a' ? bgB : bgA;
+      var outgoing = bgActive === 'a' ? bgA : bgB;
+      incoming.style.background = next.bg;
+      incoming.style.opacity = '1';
+      outgoing.style.opacity = '0';
+      bgActive = bgActive === 'a' ? 'b' : 'a';
+
+      slides[current].classList.remove('active');
+
+      setTimeout(function () {
+        headingEl.classList.remove('exiting');
+        descEl.classList.remove('exiting');
+        headingEl.style.transition = 'none';
+        descEl.style.transition = 'none';
+        headingEl.style.transform = 'translateY(110%)';
+        descEl.style.transform = 'translateY(110%)';
+
+        paint(next);
+        slides[idx].classList.add('active');
+        current = idx;
+        sync();
+
+        requestAnimationFrame(function () {
+          requestAnimationFrame(function () {
+            headingEl.style.transition = '';
+            descEl.style.transition = '';
+            headingEl.style.transform = '';
+            descEl.style.transform = '';
+            headingEl.classList.add('visible');
+            descEl.classList.add('visible');
+            busy = false;
+          });
+        });
+      }, 320);
+    }
+
+    function sync() {
+      dots.forEach(function (d, i) { d.classList.toggle('active', i === current); });
+      prevBtn.disabled = current === 0;
+      nextBtn.disabled = current === steps.length - 1;
+    }
+
+    prevBtn.addEventListener('click', function () { goTo(current - 1); });
+    nextBtn.addEventListener('click', function () { goTo(current + 1); });
+
+    return { goTo: goTo };
+  }
+
+  createStepShowcase(document.getElementById('demo'), [
+    {
+      badge: '01', color: '#FF6B35',
+      bg: 'linear-gradient(160deg,#2a1204 0%,#0d0500 100%)',
+      heading: 'One Tap Books It',
+      desc: 'Send a link, they pick a time. No phone tag.',
+      screenHTML: '<div class="ssw-phone"><div class="ssw-screen" style="background:#111827;color:#fff;font:700 13px system-ui;">Booked</div></div>'
+    },
+    {
+      badge: '02', color: '#38bdf8',
+      bg: 'linear-gradient(160deg,#072030 0%,#020c12 100%)',
+      heading: 'We\'re On Our Way',
+      desc: 'A live arrival alert lands 30 minutes out.',
+      screenHTML: '<div class="ssw-phone"><div class="ssw-screen" style="background:#111827;color:#93c5fd;font:700 12px system-ui;">On the way</div></div>'
+    },
+    {
+      badge: '03', color: '#4ade80',
+      bg: 'linear-gradient(160deg,#0a1a08 0%,#030804 100%)',
+      heading: 'Paid In One Tap',
+      desc: 'A secure payment link, done before you leave.',
+      screenHTML: '<div class="ssw-phone"><div class="ssw-screen" style="background:#f0efe9;color:#241a12;font:700 13px system-ui;">$185.00</div></div>'
+    }
+  ]);
+</script>

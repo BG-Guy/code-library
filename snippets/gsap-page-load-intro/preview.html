@@ -1,0 +1,26 @@
+<script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js"></script>
+<div class="mx-auto max-w-sm rounded-2xl bg-slate-900 px-8 py-10 text-center text-white" id="stage">
+  <p class="reveal text-xs font-semibold uppercase tracking-widest text-indigo-300">Welcome to</p>
+  <h1 class="reveal mt-2 text-2xl font-bold leading-tight">Build Something<br />Extraordinary</h1>
+  <p class="reveal mt-3 text-sm text-slate-300">A short subheading that explains the product in one line.</p>
+  <button class="reveal mt-6 rounded-full bg-indigo-500 px-6 py-2.5 text-sm font-semibold text-white">Get Started</button>
+</div>
+<div class="mt-4 flex justify-center">
+  <button id="replay" class="rounded-full border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700">Replay intro</button>
+</div>
+<script>
+  function playIntro() {
+    gsap.set(".reveal", { opacity: 0, y: 40 });
+
+    gsap.to(".reveal", {
+      y: 0,
+      opacity: 1,
+      duration: 0.9,
+      ease: "power3.out",
+      stagger: 0.15
+    });
+  }
+
+  playIntro();
+  document.getElementById("replay").addEventListener("click", playIntro);
+</script>

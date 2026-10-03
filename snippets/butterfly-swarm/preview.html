@@ -1,0 +1,169 @@
+<div style="position:relative;width:100%;height:380px;background:#0a0d16;overflow:hidden;">
+  <canvas id="swarm" style="position:absolute;inset:0;width:100%;height:100%;"></canvas>
+</div>
+<script>
+  function initButterflySwarm(canvas, overrides) {
+    var ctx = canvas.getContext("2d");
+    var dpr = Math.min(window.devicePixelRatio || 1, 2);
+
+    var CONFIG = Object.assign({
+      particleCount: 650, hold: 2.4, morph: 3.0, staggerSpread: 0.55, flowSpeed: 0.2,
+      bowRange: [0.05, 0.13], wanderAmp: 0.035, wanderFreq: 2.1, dotSize: 1.5,
+      triLaps: 11, triInner: 0.4, formationRadius: 0.36,
+      bfHalfTurns: 7, bfInner: 0.4, bfBase: 0.20,
+      bfUpperAmp: 0.95, bfUpperPos: 0.70, bfUpperWidth: 0.32,
+      bfLowerAmp: 0.52, bfLowerPos: -0.74, bfLowerWidth: 0.26,
+      palette: [[20,14,10],[217,92,15],[245,158,11],[250,204,90]]
+    }, overrides);
+
+    function paletteColor(u) {
+      u = Math.max(0, Math.min(1, u));
+      var palette = CONFIG.palette;
+      var scaled = u * (palette.length - 1);
+      var i0 = Math.floor(scaled);
+      var i1 = Math.min(palette.length - 1, i0 + 1);
+      var f = scaled - i0;
+      var a = palette[i0], b = palette[i1];
+      return [a[0]+(b[0]-a[0])*f, a[1]+(b[1]-a[1])*f, a[2]+(b[2]-a[2])*f];
+    }
+    function easeInOutCubic(x) { return x < 0.5 ? 4*x*x*x : 1 - Math.pow(-2*x+2,3)/2; }
+
+    function wingRadius(s) {
+      return CONFIG.bfBase
+        + CONFIG.bfUpperAmp*Math.exp(-Math.pow((s-CONFIG.bfUpperPos)/CONFIG.bfUpperWidth,2))
+        + CONFIG.bfLowerAmp*Math.exp(-Math.pow((s-CONFIG.bfLowerPos)/CONFIG.bfLowerWidth,2));
+    }
+    function butterflyHalf(w) {
+      var phi = Math.PI/2 - w*Math.PI*CONFIG.bfHalfTurns;
+      var scale = CONFIG.bfInner + (1-CONFIG.bfInner)*(1-w);
+      var r = wingRadius(Math.sin(phi))*scale;
+      return { x: Math.cos(phi)*r, y: Math.sin(phi)*r };
+    }
+    function butterflyRaw(v) {
+      if (v < 0.5) return butterflyHalf(2*v);
+      var p = butterflyHalf(2 - 2*v);
+      return { x: -p.x, y: p.y };
+    }
+    var TRIANGLE_VERTS = [{x:0,y:1},{x:-0.866,y:-0.5},{x:0.866,y:-0.5}];
+    function triangleRaw(v) {
+      var phase = (v * CONFIG.triLaps) % 1;
+      var radius = CONFIG.triInner + (1 - CONFIG.triInner) * Math.abs(1 - 2*v);
+      var edge = Math.floor(phase*3);
+      var f = phase*3 - edge;
+      var a = TRIANGLE_VERTS[edge], b = TRIANGLE_VERTS[(edge+1)%3];
+      return { x: (a.x+(b.x-a.x)*f)*radius, y: (a.y+(b.y-a.y)*f)*radius };
+    }
+
+    function buildShape(rawPointAt, samples) {
+      var raw = [];
+      for (var i = 0; i <= samples; i++) raw.push(rawPointAt(i/samples));
+      var cy = 0;
+      for (var i = 0; i < samples; i++) cy += raw[i].y;
+      cy /= samples;
+      var cx = 0;
+      var maxR = 0;
+      for (var i = 0; i < samples; i++) maxR = Math.max(maxR, Math.hypot(raw[i].x-cx, raw[i].y-cy));
+      var cumulative = [0];
+      for (var i = 1; i <= samples; i++) cumulative.push(cumulative[i-1] + Math.hypot(raw[i].x-raw[i-1].x, raw[i].y-raw[i-1].y));
+      var total = cumulative[samples];
+      var s = cumulative.map(function (value) { return value/total; });
+      function pointAt(u) {
+        var lo = 0, hi = s.length - 1;
+        while (hi - lo > 1) { var mid = (lo+hi)>>1; if (s[mid] <= u) lo = mid; else hi = mid; }
+        var span = s[hi] - s[lo] || 1e-9;
+        var v = (lo + (u - s[lo])/span) / samples;
+        var p = rawPointAt(v);
+        return { x: (p.x-cx)/maxR, y: (p.y-cy)/maxR };
+      }
+      pointAt.arcLength = total / maxR;
+      return pointAt;
+    }
+
+    var SHAPES = { butterfly: buildShape(butterflyRaw, 8000), triangle: buildShape(triangleRaw, 8000) };
+
+    var particles = (function () {
+      var count = CONFIG.particleCount;
+      var result = [];
+      for (var i = 0; i < count; i++) {
+        var u0 = i/count;
+        var bowSign = i % 2 === 0 ? 1 : -1;
+        result.push({
+          u0: u0,
+          delay: u0 * CONFIG.staggerSpread,
+          bowMag: (CONFIG.bowRange[0] + Math.random()*(CONFIG.bowRange[1]-CONFIG.bowRange[0])) * bowSign,
+          wanderPhase: Math.random() * Math.PI * 2
+        });
+      }
+      return result;
+    })();
+
+    var PERIOD = 2 * (CONFIG.hold + CONFIG.morph);
+    function transitionAt(t) {
+      var tc = t % PERIOD;
+      if (tc < CONFIG.hold) return { from:"butterfly", to:"butterfly", progress:0 };
+      tc -= CONFIG.hold;
+      if (tc < CONFIG.morph) return { from:"butterfly", to:"triangle", progress: tc/CONFIG.morph };
+      tc -= CONFIG.morph;
+      if (tc < CONFIG.hold) return { from:"triangle", to:"triangle", progress:0 };
+      tc -= CONFIG.hold;
+      return { from:"triangle", to:"butterfly", progress: tc/CONFIG.morph };
+    }
+
+    function resize() {
+      var rect = canvas.parentElement.getBoundingClientRect();
+      canvas.width = rect.width * dpr;
+      canvas.height = rect.height * dpr;
+    }
+    window.addEventListener("resize", resize);
+    resize();
+
+    var reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    var start = null;
+    var lastTs = null;
+    var flowPhase = 0;
+
+    function draw(ts) {
+      if (start === null) { start = ts; lastTs = ts; }
+      var t = reduceMotion ? 0 : (ts - start)/1000;
+      var dt = reduceMotion ? 0 : Math.min((ts - lastTs)/1000, 0.1);
+      lastTs = ts;
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      var w = canvas.width/dpr, h = canvas.height/dpr;
+      ctx.clearRect(0, 0, w, h);
+      var cx = w/2, cy = h/2;
+      var formationRadius = Math.min(w, h) * CONFIG.formationRadius;
+      var trans = transitionAt(t);
+      var fromLen = SHAPES[trans.from].arcLength;
+      var toLen = SHAPES[trans.to].arcLength;
+      flowPhase += dt * CONFIG.flowSpeed / (fromLen + (toLen - fromLen) * trans.progress);
+
+      for (var i = 0; i < particles.length; i++) {
+        var p = particles[i];
+        var flowU = (p.u0 + flowPhase) % 1;
+        if (flowU < 0) flowU += 1;
+        var fromPt = SHAPES[trans.from](flowU);
+        var toPt = SHAPES[trans.to](flowU);
+        var local = Math.max(0, Math.min(1, (trans.progress - p.delay)/(1 - CONFIG.staggerSpread)));
+        var eased = easeInOutCubic(local);
+        var bx = fromPt.x + (toPt.x-fromPt.x)*eased;
+        var by = fromPt.y + (toPt.y-fromPt.y)*eased;
+        var dirX = toPt.x-fromPt.x, dirY = toPt.y-fromPt.y;
+        var dirLen = Math.hypot(dirX, dirY) || 1;
+        var envelope = Math.sin(Math.PI*eased);
+        var bow = p.bowMag * envelope;
+        var wander = CONFIG.wanderAmp * envelope;
+        var nx = bx + (-dirY/dirLen)*bow + Math.sin(t*CONFIG.wanderFreq + p.wanderPhase)*wander;
+        var ny = by + (dirX/dirLen)*bow + Math.cos(t*CONFIG.wanderFreq*1.3 + p.wanderPhase)*wander;
+        var rgb = paletteColor(1 - Math.min(1, Math.hypot(nx, ny)));
+        ctx.fillStyle = "rgba(" + rgb.join(",") + ",0.92)";
+        ctx.beginPath();
+        ctx.arc(cx + nx*formationRadius, cy + ny*formationRadius, CONFIG.dotSize, 0, Math.PI*2);
+        ctx.fill();
+      }
+      if (!reduceMotion) requestAnimationFrame(draw);
+    }
+    requestAnimationFrame(draw);
+  }
+
+  initButterflySwarm(document.getElementById("swarm"));
+</script>

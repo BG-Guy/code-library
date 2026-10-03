@@ -3,8 +3,8 @@ name: add-library-snippet
 description: >-
   How to turn a code source the user shares (a GitHub repo URL, a CodePen, a blog post
   with a demo, etc.) into a new entry in this repo's snippet library: a dependency-free
-  vanilla JS version and a shadcn/ui-style React/Next.js component, both wired into
-  assets/js/data.js and verified with a real headless-browser test before committing.
+  vanilla JS version and a shadcn/ui-style React/Next.js component, both added under
+  snippets/ and verified with a real headless-browser test before committing.
   Use this whenever the user pastes a GitHub link or other code source and asks to add,
   port, recreate, or "do this too" as a snippet/component for the library — even if they
   don't name this workflow explicitly or just paste a bare URL with a short instruction.
@@ -12,20 +12,32 @@ description: >-
 
 # Add Library Snippet
 
-This repo (`bg-guy/code-library`) is a static card-based snippet library. Every entry
-lives in `assets/js/data.js` as one object in the `SNIPPETS` array, rendered by
-`assets/js/main.js` (home grid) and `assets/js/snippet.js` (detail page). When the user
-hands you a code source and wants it added to the library, they want **two** entries out
-of it — a dependency-free vanilla JS version, and a copy-paste React/Next.js component
-built shadcn/ui-style (single file, Tailwind classNames, no build step, sensible props).
+This repo (`bg-guy/code-library`) is a static card-based snippet library. Every entry is
+a **directory** under `snippets/`, holding real files rather than strings embedded in a
+dataset:
+
+```
+snippets/<id>/
+  meta.json        id, title, language, languages?, tags, difficulty, description,
+                   preview config ({ type, height, reactRuntime? }) — but NOT the markup
+  explanation.md   the prose walkthrough
+  snippet.js       the actual code (.jsx for a react snippet)
+  preview.html     the live preview markup
+  variants/<key>/  same explanation.md / snippet.* / preview.html, for multi-language
+                   entries (see snippets/hover-carousel-nav-link)
+snippets/order.json   display order, by id — the build fails if it and the directories disagree
+```
+
+`npm run build` (`scripts/build-data.js`) compiles that tree into the two generated
+artifacts: `assets/js/data.js` (a plain `const SNIPPETS = [...]` browser script, so the
+site still works opened via `file://`) and `snippets-index.json`. **Both are generated —
+never hand-edit them.** They're rendered by `assets/js/main.js` (home grid) and
+`assets/js/snippet.js` (detail page).
 
 **Before doing anything else, check `snippets-index.json`** (repo root) to see what's
-already in the library — it's a small, generated, metadata-only mirror of `SNIPPETS`
-(id, title, language, tags, difficulty, description, nothing else) kept specifically so
-you don't have to read all of `data.js` — several thousand lines including every
-snippet's full code and prose explanation — just to check whether something similar
-already exists or to find an id. Only open `data.js` itself once you know which entry
-you're adding, editing, or using as a style reference.
+already in the library — it's a small, metadata-only mirror (id, title, language, tags,
+difficulty, description) kept specifically so you don't have to walk the whole tree just
+to check whether something similar already exists or to find an id.
 
 Follow the steps below in order. They encode mistakes that were made and caught the hard
 way while building the first pair of these (the text-parallax snippet) — skipping the
@@ -46,44 +58,38 @@ Clean up the clone once you've extracted what you need — don't leave it lying 
 
 ## 2. The snippet schema
 
-Open `assets/js/data.js` and skim a couple of existing entries before writing a new one —
-conventions drift, and the file is the source of truth, not this doc. Skeleton:
+Copy an existing snippet directory and edit it — conventions drift, and the tree is the
+source of truth, not this doc. `meta.json`:
 
-```js
+```json
 {
-  id: "kebab-case-id",
-  title: "Human Title",
-  language: "javascript", // or "react" — see LANGUAGE_LABELS at the top of the file
-  tags: ["a-few", "lowercase", "tags"],
-  difficulty: "Beginner" | "Intermediate" | "Advanced",
-  description: "One plain sentence, no markdown.",
-  explanation: `Prose + **bold** + \`inline code\` + blank-line paragraphs + "1. " lists only.`,
-  code: `/* the actual reusable snippet, escaped — see below */`,
-  preview: { /* optional, see step 3 */ },
+  "id": "kebab-case-id",
+  "title": "Human Title",
+  "language": "javascript",
+  "tags": ["a-few", "lowercase", "tags"],
+  "difficulty": "Beginner | Intermediate | Advanced",
+  "description": "One plain sentence, no markdown.",
+  "preview": { "type": "html", "height": 320 }
 }
 ```
 
-Two fields are template literals nested inside `data.js`'s own JS, which is easy to get
-wrong silently:
+Then `explanation.md`, `snippet.js` and `preview.html` as plain files beside it, and the
+new id appended to `snippets/order.json`.
 
-- **`explanation`** only supports the *markdown-lite* subset that `renderMarkdownLite` in
-  `assets/js/snippet.js` implements: `**bold**`, `` `inline code` ``, blank-line-separated
-  paragraphs, and `"1. "`-prefixed numbered lists. There is no fenced-code-block support —
-  a multi-line code block pasted into `explanation` gets its newlines collapsed into one
-  line by the paragraph renderer. Keep code out of `explanation`; put it in `code` or
-  `preview.output` instead.
-- **`code`** (and `preview.markup`/`preview.run`, if used) live inside a JS template
-  literal in `data.js`. Any literal backtick in the snippet's own code must be escaped as
-  `` \` ``, and any `${...}` must be escaped as `\${...}` or it will be interpolated by
-  the *outer* template literal instead of appearing as text. Grep an existing snippet
-  (e.g. search `data.js` for `\\\`` ) to see the pattern before writing a new one with
-  nested backticks.
+**Snippet code needs no escaping.** `snippet.js` and `preview.html` are real files, and
+the build emits them with `JSON.stringify`, so backticks, `${...}` and `</script>` all
+pass through literally. This used to be the single biggest source of silent breakage when
+entries lived as nested template literals — don't reintroduce the habit of escaping them.
 
-After every edit to `data.js`, run `node --check assets/js/data.js` — a broken escape is
-a silent syntax error otherwise, not something you'll notice by eye. If the snippet's own
-code needs to build strings dynamically (e.g. a CSS `transform` value), consider writing
-it with plain `+` concatenation instead of a nested template literal — it sidesteps the
-backtick/`${}` escaping entirely and reads just as clearly for a short expression.
+One real constraint remains, in `explanation.md`: it only supports the *markdown-lite*
+subset that `renderMarkdownLite` in `assets/js/snippet.js` implements — `**bold**`,
+`` `inline code` ``, blank-line-separated paragraphs, and `"1. "`-prefixed numbered
+lists. There is no fenced-code-block support; a multi-line code block pasted in gets its
+newlines collapsed into one line by the paragraph renderer. Keep code out of
+`explanation.md` and put it in `snippet.js`.
+
+After editing, run `npm run build`, then `node --check assets/js/data.js` to confirm the
+generated script still parses.
 
 ## 3. Preview conventions
 
@@ -166,7 +172,7 @@ Only needed the first time a snippet needs a language/framework not already in
 `"javascript"` or `"react"`) across `assets/` and `index.html` before you start, don't
 rely on this list from memory, conventions may have shifted:
 
-1. `assets/js/data.js` — add to `LANGUAGE_LABELS`.
+1. `assets/js/languages.js` — add to `LANGUAGE_LABELS`.
 2. `index.html` — add a `<button class="pill" data-filter="...">` inside `#languagePills`.
 3. `assets/js/layout.js` — add to the `categories` array (side hamburger menu) **and**
    the hardcoded footer language `<li>` list — these are two separate hand-written spots,
@@ -197,7 +203,7 @@ A preview can look completely correct in a static screenshot while being functio
 dead (this happened with the first scroll-based attempt here — it rendered fine and only
 failed once actually scrolled). Treat this step as mandatory:
 
-1. `node --check assets/js/data.js`.
+1. `npm run build`, then `node --check assets/js/data.js`.
 2. Serve the repo root: `python3 -m http.server <port>` from the repo root, in the
    background.
 3. Drive it with Playwright. The `playwright` npm package is installed globally, not
@@ -229,14 +235,19 @@ but any coordinates you feed into a `TouchEvent`/`MouseEvent` you construct and 
 *inside* that frame (via `frame.evaluate`) need to be frame-relative — subtract the iframe's
 own `boundingBox()` offset first, don't add it.
 
-## 7. Regenerate the index
+## 7. Rebuild the generated artifacts
 
-Run `node scripts/export-index.js` to rebuild `snippets-index.json` from the current
-`SNIPPETS` array. Do this any time you add, remove, or rename a snippet (edits to a
-snippet's code/explanation/preview alone don't need it, since none of that is mirrored
-into the index). Commit the updated `snippets-index.json` alongside your `data.js` change
-— a stale index is worse than no index, since it actively lies about what's in the
-library.
+Run `npm run build` (`scripts/build-data.js`) to regenerate **both** `assets/js/data.js`
+and `snippets-index.json` from `snippets/`. Do this after *any* change under `snippets/`,
+not just adds and renames — unlike the old setup, the snippet code and previews now live
+in the tree too, so an edit to `snippet.js` or `preview.html` won't reach the site until
+you rebuild.
+
+Commit the regenerated files alongside your `snippets/` change. They're checked in
+deliberately, so the site works for anyone who clones it without running a build — but
+that also means a stale `data.js` silently serves old code, which is worse than no index
+at all. If the build throws about `order.json`, you added a directory without listing it
+(or vice versa) — that guard exists precisely to stop a snippet going live invisible.
 
 ## 8. Commit and push
 

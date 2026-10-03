@@ -1,0 +1,17 @@
+{
+  "id": "dot-to-underline-link",
+  "title": "Dot-to-Underline Hover Link",
+  "language": "javascript",
+  "tags": [
+    "animation",
+    "navigation",
+    "hover-effects",
+    "web-animations-api"
+  ],
+  "difficulty": "Intermediate",
+  "description": "A small dot beneath a nav link fades in, then stretches into a full underline bar on hover — and mirrors the whole thing in reverse on the way out.",
+  "preview": {
+    "type": "html",
+    "height": 150
+  }
+}

@@ -1,0 +1,112 @@
+<div id="stage" style="height:260px;border-radius:14px;background:#f8fafc;display:flex;align-items:center;justify-content:center;gap:20px;">
+  <button data-sticky style="padding:14px 26px;border-radius:999px;border:1px solid #cbd5e1;background:#fff;font:600 14px -apple-system,sans-serif;cursor:pointer;">Hover me</button>
+  <button data-sticky style="padding:14px 26px;border-radius:999px;border:1px solid #cbd5e1;background:#fff;font:600 14px -apple-system,sans-serif;cursor:pointer;">...and me</button>
+</div>
+<p style="text-align:center;margin:12px 0 0;font:600 12px -apple-system,sans-serif;color:#64748b;">Hover the buttons with a mouse — or on touch, drag the ring below them.</p>
+<style>
+  body { margin:0; background:#f8fafc; }
+</style>
+<script>
+  function createStickyCursor(targets, options) {
+    var opts = Object.assign({ size: 15, stickySize: 60, pull: 0.1, stiffness: 0.15, friction: 0.65, color: "#111" }, options);
+    var list = targets instanceof Element ? [targets] : Array.prototype.slice.call(targets);
+
+    var cursor = document.createElement("div");
+    cursor.className = "sticky-cursor";
+    Object.assign(cursor.style, {
+      position: "fixed", top: "0", left: "0", borderRadius: "50%",
+      background: opts.color, pointerEvents: "none", zIndex: 9999, willChange: "transform",
+    });
+    document.body.appendChild(cursor);
+
+    var pointer = { x: innerWidth / 2, y: innerHeight / 2 };
+    var smooth = { x: pointer.x, y: pointer.y, vx: 0, vy: 0 };
+    var size = { value: opts.size, v: 0 };
+    var active = null;
+
+    function hitTest(x, y) {
+      var found = null;
+      list.forEach(function (el) {
+        var r = el.getBoundingClientRect();
+        if (x >= r.left && x <= r.right && y >= r.top && y <= r.bottom) found = el;
+      });
+      return found;
+    }
+
+    function setPointer(x, y) {
+      pointer.x = x;
+      pointer.y = y;
+      active = hitTest(x, y);
+    }
+
+    function springStep(pos, vel, target) {
+      vel += (target - pos) * opts.stiffness;
+      vel *= opts.friction;
+      return [pos + vel, vel];
+    }
+
+    function frame() {
+      var targetX = pointer.x;
+      var targetY = pointer.y;
+      var targetSize = opts.size;
+      var suffix = "";
+
+      if (active) {
+        var r = active.getBoundingClientRect();
+        var center = { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+        var dist = { x: pointer.x - center.x, y: pointer.y - center.y };
+        var abs = Math.max(Math.abs(dist.x), Math.abs(dist.y));
+        var scaleX = 1 + Math.min(abs / (r.height / 2), 1) * 0.3;
+        var scaleY = 1 - Math.min(abs / (r.width / 2), 1) * 0.2;
+        var angle = Math.atan2(dist.y, dist.x);
+
+        targetX = center.x + dist.x * opts.pull;
+        targetY = center.y + dist.y * opts.pull;
+        targetSize = opts.stickySize;
+        suffix = " rotate(" + angle + "rad) scaleX(" + scaleX + ") scaleY(" + scaleY + ")";
+      }
+
+      var stepX = springStep(smooth.x, smooth.vx, targetX);
+      smooth.x = stepX[0]; smooth.vx = stepX[1];
+      var stepY = springStep(smooth.y, smooth.vy, targetY);
+      smooth.y = stepY[0]; smooth.vy = stepY[1];
+      var stepS = springStep(size.value, size.v, targetSize);
+      size.value = stepS[0]; size.v = stepS[1];
+      var s = Math.max(0, size.value);
+
+      cursor.style.width = s + "px";
+      cursor.style.height = s + "px";
+      cursor.style.transform = "translate(" + (smooth.x - s / 2) + "px, " + (smooth.y - s / 2) + "px)" + suffix;
+    }
+    setInterval(frame, 16);
+
+    window.addEventListener("mousemove", function (e) { setPointer(e.clientX, e.clientY); });
+
+    if (matchMedia("(pointer: coarse)").matches) {
+      var handle = document.createElement("div");
+      handle.className = "sticky-cursor-handle";
+      var HANDLE_OFFSET_Y = 56;
+      Object.assign(handle.style, {
+        position: "fixed", width: "44px", height: "44px", borderRadius: "50%",
+        border: "2px solid " + opts.color, background: "rgba(255,255,255,.6)",
+        touchAction: "none", zIndex: 10000,
+        left: (pointer.x - 22) + "px", top: (pointer.y + HANDLE_OFFSET_Y - 22) + "px",
+      });
+      document.body.appendChild(handle);
+
+      var dragging = false;
+      handle.addEventListener("touchstart", function (e) { dragging = true; e.preventDefault(); }, { passive: false });
+      window.addEventListener("touchmove", function (e) {
+        if (!dragging) return;
+        e.preventDefault();
+        var t = e.touches[0];
+        handle.style.left = (t.clientX - 22) + "px";
+        handle.style.top = (t.clientY - 22) + "px";
+        setPointer(t.clientX, t.clientY - HANDLE_OFFSET_Y);
+      }, { passive: false });
+      window.addEventListener("touchend", function () { dragging = false; });
+    }
+  }
+
+  createStickyCursor(document.querySelectorAll("[data-sticky]"));
+</script>

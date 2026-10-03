@@ -1,0 +1,17 @@
+{
+  "id": "gsap-page-load-intro",
+  "title": "Page-Load Intro Animation (GSAP)",
+  "language": "javascript",
+  "tags": [
+    "animation",
+    "gsap",
+    "page-load",
+    "stagger"
+  ],
+  "difficulty": "Beginner",
+  "description": "A hero's heading, subheading, and CTA button slide up and fade in one after another the moment the page loads — a single staggered GSAP tween instead of several hand-timed CSS animations.",
+  "preview": {
+    "type": "html",
+    "height": 380
+  }
+}

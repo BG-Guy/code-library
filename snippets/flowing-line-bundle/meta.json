@@ -1,0 +1,17 @@
+{
+  "id": "flowing-line-bundle",
+  "title": "Flowing Line Bundle",
+  "language": "javascript",
+  "tags": [
+    "animation",
+    "canvas",
+    "hero-background",
+    "requestanimationframe"
+  ],
+  "difficulty": "Advanced",
+  "description": "A fan of curved lines that all pass near one shared point and spread apart on either side — the same shape a lens focuses light rays into — every line rippling with the exact same wave, just sampled from a different spot in a shared travel range, so the whole bundle reads as one motion passed hand to hand rather than many independent animations — plus three strands that each carry a short band of gold light sliding across the frame every 5 seconds, offset so no two arrive or leave together.",
+  "preview": {
+    "type": "html",
+    "height": 300
+  }
+}

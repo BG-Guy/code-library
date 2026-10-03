@@ -1,0 +1,16 @@
+{
+  "id": "inner-page-transition",
+  "title": "Slide-Cover Page Transition",
+  "language": "javascript",
+  "tags": [
+    "animation",
+    "css-transitions",
+    "transitions"
+  ],
+  "difficulty": "Intermediate",
+  "description": "Slide a panel up to cover the outgoing page while it shrinks back in perspective, swap the content underneath, then slide the panel away to reveal it — pure CSS transitions orchestrated by a few lines of JS.",
+  "preview": {
+    "type": "html",
+    "height": 340
+  }
+}

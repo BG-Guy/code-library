@@ -1,0 +1,61 @@
+<div id="root"></div>
+<div style="max-width:640px;margin:16px auto 0;display:flex;align-items:center;gap:10px;font:600 12px -apple-system,sans-serif;color:#475569;">
+  <span>Scroll progress</span>
+  <input id="tpRange" type="range" min="0" max="100" value="24" style="flex:1;accent-color:#4f46e5;" />
+</div>
+<p style="max-width:640px;margin:8px auto 0;font:500 11px -apple-system,sans-serif;color:#94a3b8;">The real component drives this off Framer Motion's `useScroll` — the slider stands in for actual page scroll here, but `useTransform` below is the genuine Framer Motion hook.</p>
+<style>
+  body { margin: 0; background: #f8fafc; }
+</style>
+<script>
+  var e = React.createElement;
+  var Motion = window.Motion;
+
+  var rowsData = [
+    { text: "Front End Developer", direction: "left" },
+    { text: "Creative Coder", direction: "right" },
+    { text: "Open To Work", direction: "left" }
+  ];
+
+  function ParallaxRow(props) {
+    var dir = props.direction === "right" ? 1 : -1;
+    var x = Motion.useTransform(props.progress, [0, 1], [props.speed * dir, -props.speed * dir]);
+    return e(
+      Motion.motion.div,
+      { style: { x: x, display: "flex", whiteSpace: "nowrap", willChange: "transform" } },
+      [0, 1, 2].map(function (i) {
+        return e(
+          "span",
+          { key: i, style: { padding: "0 1rem", fontSize: "7vw", fontWeight: 800, letterSpacing: "-0.02em", color: "#fff" } },
+          props.text
+        );
+      })
+    );
+  }
+
+  function TextParallaxDemo() {
+    var progress = Motion.useMotionValue(0.24);
+    var speed = 140;
+
+    React.useEffect(function () {
+      var range = document.getElementById("tpRange");
+      function onInput() {
+        progress.set(range.value / 100);
+      }
+      range.addEventListener("input", onInput);
+      return function () {
+        range.removeEventListener("input", onInput);
+      };
+    }, []);
+
+    return e(
+      "div",
+      { style: { maxWidth: 640, margin: "0 auto", borderRadius: 14, overflow: "hidden", background: "#0f172a", padding: "36px 0" } },
+      rowsData.map(function (row, i) {
+        return e(ParallaxRow, { key: i, text: row.text, direction: row.direction, speed: speed, progress: progress });
+      })
+    );
+  }
+
+  ReactDOM.createRoot(document.getElementById("root")).render(e(TextParallaxDemo));
+</script>

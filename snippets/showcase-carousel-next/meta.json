@@ -1,0 +1,20 @@
+{
+  "id": "showcase-carousel-next",
+  "title": "Showcase Carousel (Next.js)",
+  "language": "react",
+  "tags": [
+    "animation",
+    "carousel",
+    "steps",
+    "framer-motion",
+    "next.js",
+    "onboarding"
+  ],
+  "difficulty": "Advanced",
+  "description": "The same phone-mockup step showcase as a copy-paste React/Next.js component — Framer Motion crossfades the background, heading, and phone visual on every step change.",
+  "preview": {
+    "type": "html",
+    "height": 360,
+    "reactRuntime": true
+  }
+}

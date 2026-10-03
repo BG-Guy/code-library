@@ -1,0 +1,31 @@
+<div style="max-width:360px;margin:0 auto;">
+  <div id="demo" style="position:relative;overflow:hidden;height:240px;border-radius:14px;border:1px solid #e2e8f0;">
+    <div id="shell" style="position:absolute;top:0;left:0;right:0;z-index:1;background:#fff;">
+      <div style="height:160px;display:flex;align-items:center;justify-content:center;background:#eef2ff;color:#3730a3;font:600 13px -apple-system,sans-serif;">Page content</div>
+      <div style="height:160px;display:flex;align-items:center;justify-content:center;background:#fff7ed;color:#9a3412;font:600 13px -apple-system,sans-serif;">Keep scrolling…</div>
+    </div>
+    <div id="footer" style="position:absolute;left:0;right:0;bottom:0;height:110px;z-index:0;display:flex;align-items:center;justify-content:center;background:#0f172a;color:#fff;font:600 13px -apple-system,sans-serif;">👋 Footer revealed!</div>
+  </div>
+  <div style="margin-top:12px;display:flex;align-items:center;gap:10px;font:600 12px -apple-system,sans-serif;color:#475569;">
+    <span>Scroll progress</span>
+    <input id="rfRange" type="range" min="0" max="100" value="0" style="flex:1;accent-color:#4f46e5;" />
+  </div>
+  <p style="margin-top:8px;font:500 11px -apple-system,sans-serif;color:#94a3b8;">The real component is driven by actual page scroll — the slider stands in for that here so the demo works inside this preview frame.</p>
+</div>
+<script>
+  var shell = document.getElementById("shell");
+  var demo = document.getElementById("demo");
+  var footerH = document.getElementById("footer").offsetHeight;
+
+  function update(progress) {
+    var shellH = shell.offsetHeight;
+    var maxTravel = Math.max(0, shellH - (demo.offsetHeight - footerH));
+    shell.style.transform = "translateY(-" + (progress / 100 * maxTravel) + "px)";
+  }
+
+  document.getElementById("rfRange").addEventListener("input", function (e) {
+    update(Number(e.target.value));
+  });
+
+  update(0);
+</script>

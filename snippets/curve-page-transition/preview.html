@@ -1,0 +1,62 @@
+<div class="relative mx-auto h-64 w-full max-w-sm overflow-hidden rounded-xl bg-slate-100" id="stage">
+  <div class="absolute inset-0 flex items-center justify-center bg-indigo-50 text-indigo-900" id="pageA">
+    <p class="text-lg font-semibold">Page A</p>
+  </div>
+  <div class="absolute inset-0 hidden items-center justify-center bg-amber-50 text-amber-900" id="pageB">
+    <p class="text-lg font-semibold">Page B</p>
+  </div>
+</div>
+<div class="mt-4 flex justify-center">
+  <button id="go" class="rounded-full bg-indigo-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-indigo-700">Go to Page B</button>
+</div>
+<script>
+  function easeInOutCubic(t) { return t < 0.5 ? 4 * t ** 3 : 1 - (-2 * t + 2) ** 3 / 2; }
+
+  function buildPanelPath(width, height, bulge) {
+    return "M0,0 L" + width + ",0 L" + width + "," + (height - bulge) +
+      " Q" + (width / 2) + "," + (height + bulge) + " 0," + (height - bulge) + " Z";
+  }
+
+  const stage = document.getElementById("stage");
+  const svgNS = "http://www.w3.org/2000/svg";
+  const svg = document.createElementNS(svgNS, "svg");
+  svg.setAttribute("class", "pointer-events-none absolute inset-0 h-full w-full");
+  const path = document.createElementNS(svgNS, "path");
+  path.setAttribute("fill", "#4f46e5");
+  svg.appendChild(path);
+  stage.appendChild(svg);
+
+  function animate(direction) {
+    return new Promise((resolve) => {
+      const start = performance.now();
+      const duration = 550;
+      const rect = stage.getBoundingClientRect();
+
+      function frame(now) {
+        const t = Math.min((now - start) / duration, 1);
+        const eased = easeInOutCubic(t);
+        const travel = direction === "in" ? eased * rect.height : (1 - eased) * rect.height;
+        const bulge = Math.sin(eased * Math.PI) * (rect.height * 0.08);
+        path.setAttribute("d", buildPanelPath(rect.width, travel, bulge));
+        if (t < 1) requestAnimationFrame(frame); else resolve();
+      }
+
+      requestAnimationFrame(frame);
+    });
+  }
+
+  let showingB = false;
+  document.getElementById("go").addEventListener("click", async (e) => {
+    const btn = e.currentTarget;
+    btn.disabled = true;
+    await animate("in");
+    showingB = !showingB;
+    document.getElementById("pageA").classList.toggle("hidden", showingB);
+    document.getElementById("pageA").classList.toggle("flex", !showingB);
+    document.getElementById("pageB").classList.toggle("hidden", !showingB);
+    document.getElementById("pageB").classList.toggle("flex", showingB);
+    btn.textContent = showingB ? "Back to Page A" : "Go to Page B";
+    await animate("out");
+    btn.disabled = false;
+  });
+</script>

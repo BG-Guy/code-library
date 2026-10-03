@@ -1,0 +1,17 @@
+{
+  "id": "infinite-text-parallax",
+  "title": "Infinite Text Parallax",
+  "language": "javascript",
+  "tags": [
+    "scroll",
+    "animation",
+    "parallax",
+    "marquee"
+  ],
+  "difficulty": "Advanced",
+  "description": "Repeating rows of text drift sideways at different rates as the page scrolls past them — the marquee-style parallax popular on agency and portfolio hero sections, in about 30 dependency-free lines.",
+  "preview": {
+    "type": "html",
+    "height": 320
+  }
+}

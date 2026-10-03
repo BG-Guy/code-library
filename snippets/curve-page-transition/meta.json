@@ -1,0 +1,17 @@
+{
+  "id": "curve-page-transition",
+  "title": "Curve Page Transition",
+  "language": "javascript",
+  "tags": [
+    "animation",
+    "svg",
+    "transitions",
+    "requestanimationframe"
+  ],
+  "difficulty": "Advanced",
+  "description": "A colored SVG panel with a curved leading edge sweeps over the page, swaps the content while it's fully hidden, then sweeps away again — a framework-free take on the 'wipe' route transitions popular on portfolio sites.",
+  "preview": {
+    "type": "html",
+    "height": 340
+  }
+}

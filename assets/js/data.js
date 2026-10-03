@@ -3227,7 +3227,7 @@ export function PhoneMockup({ children }) {
     language: "javascript",
     tags: ["animation", "canvas", "hero-background", "requestanimationframe"],
     difficulty: "Advanced",
-    description: "A fan of curved lines that all pass near one shared point and spread apart on either side — the same shape a lens focuses light rays into — every line rippling with the exact same wave, just sampled from a different spot in a shared travel range, so the whole bundle reads as one motion passed hand to hand rather than many independent animations.",
+    description: "A fan of curved lines that all pass near one shared point and spread apart on either side — the same shape a lens focuses light rays into — every line rippling with the exact same wave, just sampled from a different spot in a shared travel range, so the whole bundle reads as one motion passed hand to hand rather than many independent animations — plus three strands that each carry a short band of gold light sliding across the frame every 5 seconds, offset so no two arrive or leave together.",
     explanation: `A canvas-drawn hero background: a bundle of curves that braid tightly through one shared point and fan apart on both sides, with every line rippling to the exact same waveform — just phase-shifted from a different position in a shared travel range.
 
 **How it works**
@@ -3237,6 +3237,7 @@ export function PhoneMockup({ children }) {
 3. \`tracePath()\` doesn't stroke that bezier directly — it samples ~70 points along it with \`bezierPoint\`/\`bezierTangent\`, and pushes each sample sideways along the curve's own normal by \`sin(waveFreq · u · 2π + wavePhase + t · waveSpeed)\`. \`waveAmp\`, \`waveFreq\`, and \`waveSpeed\` are one shared value for every line, and only \`wavePhase\` differs, so the whole bundle reads as a single wave passed from line to line rather than many independent animations. A \`taper\` fades the ripple to 0 in just the last 6% at each end so every line still lands exactly on its start/end point.
 4. \`pinchAt()\` adds a second, slower layer of motion: the shared pinch point drifts on one sine, computed once per frame and reused by every line — so the bundle's overall shape isn't perfectly static, but still moves as a single rigid whole rather than each line drifting at its own speed.
 5. Color comes from \`paletteColor()\`, a 5-stop gradient (green → teal → cyan → blue) sampled by each line's fan position rather than one fixed palette for every line, so the bundle visibly separates by color from one edge to the other — plus roughly 1 line in \`accentEvery\` gets recolored magenta as a spark.
+6. \`drawHighlight()\` sends a short band of light travelling along a few of the lines. It isn't a separate sprite riding on top: it's a \`highlightWidth\`-long slice of the very same sampled path, cut out by arc length with \`sliceByLength()\` and restroked thicker and at full alpha in \`highlightColor\` — a gold that sits deliberately outside the green-to-blue palette, so the light reads as something passing through the bundle rather than one strand brightening — behind a gradient that falls to 0 at both ends — so it stays glued to the ripple it's crossing instead of drifting off it. \`visibleRange()\` limits the travel to the stretch of line actually inside the canvas, since every line runs far past both edges and a band crossing the whole path would spend most of its cycle off-screen. All \`highlightCount\` bands share one \`highlightPeriod\`; only \`highlightOffsets\` differs, so each enters and leaves the frame at its own moment while still crossing on the same 5-second beat.
 
 Give it a positioned container with a canvas inside — the canvas resizes to \`canvas.parentElement\`'s box — and call \`initFlowingLines(canvasEl)\`. Every parameter above is overridable through the second argument.`,
     code: `function initFlowingLines(canvas, overrides) {
@@ -3261,6 +3262,15 @@ Give it a positioned container with a canvas inside — the canvas resizes to \`
     travelStep: 0.3,                   // that's the only thing that differs between lines
     drawWidth: 0.9,
     glowWidth: 2.2,
+    highlightCount: 3,                 // lines that carry a travelling band of light
+    highlightWidth: [60, 100],         // px of a line's length one band covers
+    highlightPeriod: 5,                // seconds for a band to cross one whole line
+    highlightOffsets: [0, 0.37, 0.68], // fraction of that period each band starts into,
+                                       // so the bands enter and leave at different moments
+    highlightGlow: 8,                  // px, the band's soft halo
+    highlightCore: 1.8,                // px, the band's bright center
+    highlightColor: [246, 173, 20],    // gold — deliberately outside the palette, so the
+                                       // light reads as its own thing passing through
     accentEvery: 21,                   // 1 line in this many gets recolored as a spark
     palette: [
       [134, 224, 96],   // yellow-green
@@ -3329,6 +3339,17 @@ Give it a positioned container with a canvas inside — the canvas resizes to \`
         accent: i % CONFIG.accentEvery === Math.floor(CONFIG.accentEvery / 2),
       });
     }
+
+    // A few lines, spread evenly across the fan, each carry one travelling
+    // band of light. They all share highlightPeriod — only the offset differs,
+    // so no two bands slide off the end at the same moment.
+    for (let k = 0; k < CONFIG.highlightCount && k < result.length; k++) {
+      const spread = CONFIG.highlightCount === 1 ? 0.5 : k / (CONFIG.highlightCount - 1);
+      result[Math.round(((k + 0.5) / CONFIG.highlightCount) * (result.length - 1))].highlight = {
+        width: lerp(CONFIG.highlightWidth[0], CONFIG.highlightWidth[1], spread),
+        offset: CONFIG.highlightOffsets[k % CONFIG.highlightOffsets.length],
+      };
+    }
     return result;
   }
 
@@ -3375,13 +3396,15 @@ Give it a positioned container with a canvas inside — the canvas resizes to \`
     return grad;
   }
 
-  // Traces the line's wavy path into the current canvas path: samples the
-  // base bezier and pushes each sample sideways by a sine riding along its
-  // own length. Identical waveform for every line — the only difference
-  // between lines is wavePhase, i.e. which spot in the shared travel range
-  // this one was sampled from.
-  function tracePath(ctx, bezier, wavePhase, t) {
+  // Samples the line's wavy path into a point list: walks the base bezier and
+  // pushes each sample sideways by a sine riding along its own length.
+  // Identical waveform for every line — the only difference between lines is
+  // wavePhase, i.e. which spot in the shared travel range this one was
+  // sampled from. Returning the points (rather than stroking straight into
+  // the canvas path) is what lets the highlight reuse the exact same curve.
+  function samplePath(bezier, wavePhase, t) {
     const edge = 0.06; // fraction of the length, at each end, where the ripple fades to 0
+    const points = [];
     for (let s = 0; s <= CONFIG.waveSamples; s++) {
       const u = s / CONFIG.waveSamples;
       const point = bezierPoint(bezier.p0, bezier.c1, bezier.c2, bezier.p3, u);
@@ -3391,19 +3414,113 @@ Give it a positioned container with a canvas inside — the canvas resizes to \`
       const taper = Math.max(0, Math.min(1, Math.min(u / edge, (1 - u) / edge)));
       const ripple = CONFIG.waveAmp * taper * Math.sin(CONFIG.waveFreq * u * Math.PI * 2 + wavePhase + t * CONFIG.waveSpeed);
 
-      const x = point.x + normal.x * ripple;
-      const y = point.y + normal.y * ripple;
-      if (s === 0) ctx.moveTo(x, y);
-      else ctx.lineTo(x, y);
+      points.push({ x: point.x + normal.x * ripple, y: point.y + normal.y * ripple });
     }
+    return points;
+  }
+
+  function tracePoints(ctx, points) {
+    for (let i = 0; i < points.length; i++) {
+      if (i === 0) ctx.moveTo(points[i].x, points[i].y);
+      else ctx.lineTo(points[i].x, points[i].y);
+    }
+  }
+
+  function pathLength(points) {
+    let total = 0;
+    for (let i = 1; i < points.length; i++) {
+      total += Math.hypot(points[i].x - points[i - 1].x, points[i].y - points[i - 1].y);
+    }
+    return total;
+  }
+
+  // Cuts out the stretch of an already-sampled path between two arc lengths,
+  // interpolating at both ends — so a band stays the same number of px long
+  // wherever it currently sits, even where the samples are unevenly spaced.
+  function sliceByLength(points, from, to) {
+    const slice = [];
+    let walked = 0;
+    for (let i = 1; i < points.length; i++) {
+      const a = points[i - 1], b = points[i];
+      const seg = Math.hypot(b.x - a.x, b.y - a.y);
+      if (seg > 0 && walked + seg >= from && walked <= to) {
+        const u0 = Math.max(0, (from - walked) / seg);
+        const u1 = Math.min(1, (to - walked) / seg);
+        if (!slice.length) slice.push({ x: lerp(a.x, b.x, u0), y: lerp(a.y, b.y, u0) });
+        slice.push({ x: lerp(a.x, b.x, u1), y: lerp(a.y, b.y, u1) });
+      }
+      walked += seg;
+    }
+    return slice;
+  }
+
+  // The arc-length stretch of the path that actually falls inside the canvas.
+  // Every line runs far past both edges of the frame, so a band that crossed
+  // the whole path would spend most of its cycle off-screen — it travels this
+  // stretch instead, entering at one frame edge and leaving at the other.
+  function visibleRange(points, w, h) {
+    const pad = 40;
+    let walked = 0, start = -1, end = 0;
+    for (let i = 0; i < points.length; i++) {
+      if (i > 0) walked += Math.hypot(points[i].x - points[i - 1].x, points[i].y - points[i - 1].y);
+      const p = points[i];
+      if (p.x >= -pad && p.x <= w + pad && p.y >= -pad && p.y <= h + pad) {
+        if (start < 0) start = walked;
+        end = walked;
+      }
+    }
+    return start < 0 ? null : { start: start, end: end };
+  }
+
+  // One short band of light slides across the line's on-screen stretch, once
+  // per highlightPeriod: the band is just a highlightWidth-long slice of the
+  // very same wavy path, restroked brighter and thicker with its alpha falling
+  // off to 0 at both ends so it reads as light rather than a solid dash.
+  function drawHighlight(ctx, line, points, t, w, h) {
+    const range = visibleRange(points, w, h);
+    if (!range || range.end - range.start < 1) return;
+
+    const span = line.highlight.width;
+    const progress = (((t / CONFIG.highlightPeriod + line.highlight.offset) % 1) + 1) % 1;
+    // Starts fully off one end and finishes fully off the other, so the band
+    // slides in and out of frame instead of popping in mid-line.
+    const head = range.start - span + progress * (range.end - range.start + span * 2);
+    const from = Math.max(range.start, head), to = Math.min(range.end, head + span);
+    if (to - from < 1) return;
+
+    const slice = sliceByLength(points, from, to);
+    if (slice.length < 2) return;
+
+    const bandStart = slice[0], bandEnd = slice[slice.length - 1];
+    const color = "rgba(" + CONFIG.highlightColor.join(",");
+    const grad = ctx.createLinearGradient(bandStart.x, bandStart.y, bandEnd.x, bandEnd.y);
+    grad.addColorStop(0, color + ",0)");
+    grad.addColorStop(0.5, color + ",1)");
+    grad.addColorStop(1, color + ",0)");
+
+    ctx.beginPath();
+    tracePoints(ctx, slice);
+    ctx.strokeStyle = grad;
+    ctx.lineCap = "round";
+
+    ctx.globalAlpha = 0.3;
+    ctx.lineWidth = CONFIG.highlightGlow;
+    ctx.stroke();
+
+    ctx.globalAlpha = 1;
+    ctx.lineWidth = CONFIG.highlightCore;
+    ctx.stroke();
+
+    ctx.lineCap = "butt";
   }
 
   function drawLine(ctx, line, pinch, t, w, h) {
     const reach = Math.max(w, h) * 1.55;
     const bezier = baseBezierFor(line, pinch, reach);
+    const points = samplePath(bezier, line.wavePhase, t);
 
     ctx.beginPath();
-    tracePath(ctx, bezier, line.wavePhase, t);
+    tracePoints(ctx, points);
     ctx.strokeStyle = colorGradientFor(ctx, line, bezier.p0, bezier.p3);
 
     ctx.globalAlpha = 0.18;
@@ -3413,6 +3530,8 @@ Give it a positioned container with a canvas inside — the canvas resizes to \`
     ctx.globalAlpha = 1;
     ctx.lineWidth = CONFIG.drawWidth * line.widthJitter;
     ctx.stroke();
+
+    if (line.highlight) drawHighlight(ctx, line, points, t, w, h);
   }
 
   const lines = buildLines();
@@ -3492,6 +3611,13 @@ initFlowingLines(document.getElementById("lines"));`,
       travelStep: 0.3,
       drawWidth: 0.9,
       glowWidth: 2.2,
+      highlightCount: 3,
+      highlightWidth: [60, 100],
+      highlightPeriod: 5,
+      highlightOffsets: [0, 0.37, 0.68],
+      highlightGlow: 8,
+      highlightCore: 1.8,
+      highlightColor: [246, 173, 20],
       accentEvery: 21,
       palette: [
         [134, 224, 96],
@@ -3550,6 +3676,13 @@ initFlowingLines(document.getElementById("lines"));`,
           accent: i % CONFIG.accentEvery === Math.floor(CONFIG.accentEvery / 2),
         });
       }
+      for (var k = 0; k < CONFIG.highlightCount && k < result.length; k++) {
+        var spread = CONFIG.highlightCount === 1 ? 0.5 : k / (CONFIG.highlightCount - 1);
+        result[Math.round(((k + 0.5) / CONFIG.highlightCount) * (result.length - 1))].highlight = {
+          width: lerp(CONFIG.highlightWidth[0], CONFIG.highlightWidth[1], spread),
+          offset: CONFIG.highlightOffsets[k % CONFIG.highlightOffsets.length],
+        };
+      }
       return result;
     }
 
@@ -3580,8 +3713,9 @@ initFlowingLines(document.getElementById("lines"));`,
       return grad;
     }
 
-    function tracePath(ctx, bezier, wavePhase, t) {
+    function samplePath(bezier, wavePhase, t) {
       var edge = 0.06;
+      var points = [];
       for (var s = 0; s <= CONFIG.waveSamples; s++) {
         var u = s / CONFIG.waveSamples;
         var point = bezierPoint(bezier.p0, bezier.c1, bezier.c2, bezier.p3, u);
@@ -3589,17 +3723,89 @@ initFlowingLines(document.getElementById("lines"));`,
         var normal = { x: -tangent.y, y: tangent.x };
         var taper = Math.max(0, Math.min(1, Math.min(u / edge, (1 - u) / edge)));
         var ripple = CONFIG.waveAmp * taper * Math.sin(CONFIG.waveFreq * u * Math.PI * 2 + wavePhase + t * CONFIG.waveSpeed);
-        var x = point.x + normal.x * ripple;
-        var y = point.y + normal.y * ripple;
-        if (s === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+        points.push({ x: point.x + normal.x * ripple, y: point.y + normal.y * ripple });
       }
+      return points;
+    }
+
+    function tracePoints(ctx, points) {
+      for (var i = 0; i < points.length; i++) {
+        if (i === 0) ctx.moveTo(points[i].x, points[i].y); else ctx.lineTo(points[i].x, points[i].y);
+      }
+    }
+
+    function pathLength(points) {
+      var total = 0;
+      for (var i = 1; i < points.length; i++) total += Math.hypot(points[i].x - points[i - 1].x, points[i].y - points[i - 1].y);
+      return total;
+    }
+
+    function sliceByLength(points, from, to) {
+      var slice = [];
+      var walked = 0;
+      for (var i = 1; i < points.length; i++) {
+        var a = points[i - 1], b = points[i];
+        var seg = Math.hypot(b.x - a.x, b.y - a.y);
+        if (seg > 0 && walked + seg >= from && walked <= to) {
+          var u0 = Math.max(0, (from - walked) / seg);
+          var u1 = Math.min(1, (to - walked) / seg);
+          if (!slice.length) slice.push({ x: lerp(a.x, b.x, u0), y: lerp(a.y, b.y, u0) });
+          slice.push({ x: lerp(a.x, b.x, u1), y: lerp(a.y, b.y, u1) });
+        }
+        walked += seg;
+      }
+      return slice;
+    }
+
+    function visibleRange(points, w, h) {
+      var pad = 40;
+      var walked = 0, start = -1, end = 0;
+      for (var i = 0; i < points.length; i++) {
+        if (i > 0) walked += Math.hypot(points[i].x - points[i - 1].x, points[i].y - points[i - 1].y);
+        var p = points[i];
+        if (p.x >= -pad && p.x <= w + pad && p.y >= -pad && p.y <= h + pad) {
+          if (start < 0) start = walked;
+          end = walked;
+        }
+      }
+      return start < 0 ? null : { start: start, end: end };
+    }
+
+    function drawHighlight(ctx, line, points, t, w, h) {
+      var range = visibleRange(points, w, h);
+      if (!range || range.end - range.start < 1) return;
+      var span = line.highlight.width;
+      var progress = (((t / CONFIG.highlightPeriod + line.highlight.offset) % 1) + 1) % 1;
+      var head = range.start - span + progress * (range.end - range.start + span * 2);
+      var from = Math.max(range.start, head), to = Math.min(range.end, head + span);
+      if (to - from < 1) return;
+      var slice = sliceByLength(points, from, to);
+      if (slice.length < 2) return;
+      var bandStart = slice[0], bandEnd = slice[slice.length - 1];
+      var color = "rgba(" + CONFIG.highlightColor.join(",");
+      var grad = ctx.createLinearGradient(bandStart.x, bandStart.y, bandEnd.x, bandEnd.y);
+      grad.addColorStop(0, color + ",0)");
+      grad.addColorStop(0.5, color + ",1)");
+      grad.addColorStop(1, color + ",0)");
+      ctx.beginPath();
+      tracePoints(ctx, slice);
+      ctx.strokeStyle = grad;
+      ctx.lineCap = "round";
+      ctx.globalAlpha = 0.3;
+      ctx.lineWidth = CONFIG.highlightGlow;
+      ctx.stroke();
+      ctx.globalAlpha = 1;
+      ctx.lineWidth = CONFIG.highlightCore;
+      ctx.stroke();
+      ctx.lineCap = "butt";
     }
 
     function drawLine(ctx, line, pinch, t, w, h) {
       var reach = Math.max(w, h) * 1.55;
       var bezier = baseBezierFor(line, pinch, reach);
+      var points = samplePath(bezier, line.wavePhase, t);
       ctx.beginPath();
-      tracePath(ctx, bezier, line.wavePhase, t);
+      tracePoints(ctx, points);
       ctx.strokeStyle = colorGradientFor(ctx, line, bezier.p0, bezier.p3);
       ctx.globalAlpha = 0.18;
       ctx.lineWidth = CONFIG.glowWidth * line.widthJitter;
@@ -3607,6 +3813,7 @@ initFlowingLines(document.getElementById("lines"));`,
       ctx.globalAlpha = 1;
       ctx.lineWidth = CONFIG.drawWidth * line.widthJitter;
       ctx.stroke();
+      if (line.highlight) drawHighlight(ctx, line, points, t, w, h);
     }
 
     var lines = buildLines();
@@ -3636,6 +3843,489 @@ initFlowingLines(document.getElementById("lines"));`,
   }
 
   initFlowingLines(document.getElementById("lines"));
+<\/script>`,
+    },
+  },
+  {
+    id: "butterfly-swarm",
+    title: "Butterfly Swarm",
+    language: "javascript",
+    tags: ["animation", "canvas", "particles", "morphing", "requestanimationframe"],
+    difficulty: "Advanced",
+    description: "A cloud of particles streams around a butterfly, then swarms together into a triangle and back — both shapes built so their mirror is exactly the reverse of their own path, which makes the formation perfectly symmetric and evenly spaced without any special-casing, while every particle orbits in one unbroken direction.",
+    explanation: `Two shapes, one shared clock, and a swarm of particles that never stops moving. Each formation is expressed as a \`pointAt(u)\` function over a shared parameter \`u\` in [0, 1), which is what lets a particle keep flowing straight through the handoff from one shape to the other instead of stopping to "become" the new shape.
+
+**How it works**
+
+1. The butterfly is a **radius profile swept monotonically around the centre** — \`wingRadius(sin φ)\` with two Gaussian bulges for the upper and lower wings — rather than a published curve like Temple Fay's. Fay's curve is lovely standing still, but it's built from near-degenerate petals, so travelling along it means running out to a petal tip and back down almost the same line: particles appear to jitter back and forth no matter how slowly they move. Sweeping the *angle* monotonically instead means a particle orbits the centre in one direction and never retraces. The radius is a function of \`sin φ\` rather than φ directly, which forces \`dR/dφ = 0\` on the mirror axis so the half-path meets its own mirror smoothly instead of kinking.
+2. \`triangleRaw(v)\` is not a triangle outline but a **spiral** of \`triLaps\` nested passes, shrinking to \`triInner\` over the first half of \`v\` and back out over the second so the path closes exactly where it started. This is a density fix, not decoration: one triangle outline is about a twentieth of the butterfly curve's arc length, so the same particle count crammed onto it sits ~2px apart and reads as a solid line rather than particles. The spiral gives them roughly 8x more track.
+3. \`buildShape()\` wraps either raw curve into a \`pointAt(u)\` that is centered, scaled to unit radius, and — critically — parametrized by **arc length**. Advancing \`u\` at a constant rate through a raw parameter is *not* constant on-screen speed: both curves have stretches where a small parameter step covers a lot of distance and stretches where it covers almost none, so particles visibly speed up and slow down, which reads as jitter. A cumulative-distance table maps \`u\` to "the parameter that is \`u\` of the way along by distance," so constant \`du/dt\` becomes constant physical speed.
+4. Particles never park. Each keeps a fixed identity slot \`u0 = i/pairs\`, but the point it actually reads is \`u = frac(u0 + t · flowSpeed)\` — always advancing, whether the swarm is holding a formation or morphing between them.
+5. \`transitionAt(t)\` is the one shared clock: hold butterfly, morph, hold triangle, morph back. When \`from === to\` the particle simply reads its flowing point off that single shape. During a morph, each particle's own \`localProgress = clamp((progress − delay_i) / (1 − staggerSpread), 0, 1)\` is delayed by its \`u0\`, so the swarm peels apart gradually instead of every particle launching at once. A perpendicular bow and a small shared wander, both scaled by \`sin(π · eased)\`, are therefore exactly zero at rest and peak mid-flight.
+6. **Symmetry falls out of the parametrisation.** Each shape is defined as a half-path followed by its own mirror, reversed, so \`raw(1 − v)\` is *exactly* \`mirror(raw(v))\` — and since arc length is symmetric too, sampling uniformly at \`u = i/count\` makes particle \`i\` and particle \`count − i\` exact mirrors. No special-casing required. An earlier version instead drew each particle twice at \`±x\` to force symmetry; that worked, but the mirrored copies landed at arbitrary points along the path, clumped against their neighbours and fused into visible doublets. Color is keyed to distance from the centre rather than particle index, since distance is mirror-invariant — dark at the wing edges, gold toward the body, like a monarch.
+
+Give it a positioned container with a canvas inside — the canvas sizes itself to \`canvas.parentElement\` — and call \`initButterflySwarm(canvasEl)\`. Everything in \`CONFIG\` is overridable through the second argument.`,
+    code: `function initButterflySwarm(canvas, overrides) {
+  const ctx = canvas.getContext("2d");
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+
+  const CONFIG = Object.assign({
+    particleCount: 650,
+    hold: 2.4,              // seconds each formation is held
+    morph: 3.0,             // seconds each transition takes
+    staggerSpread: 0.55,    // fraction of the morph spent staggering particle starts
+    // Distance per second, as a fraction of formationRadius — NOT laps per second.
+    // The butterfly curve is ~92 units long and the triangle spiral ~40, so a shared
+    // laps/sec rate ran particles 2.3x faster on the butterfly than on the triangle.
+    flowSpeed: 0.2,
+    bowRange: [0.05, 0.13], // fraction of formationRadius, perpendicular bow at mid-flight
+    wanderAmp: 0.035,       // fraction of formationRadius
+    wanderFreq: 2.1,        // rad/sec, shared by every particle
+    dotSize: 1.5,           // px — one size for all, so mirror twins match exactly
+    // A single triangle outline is only ~1/20th the length of the butterfly curve, so
+    // the same particle count crammed onto it sits ~2px apart and reads as a solid
+    // line. The triangle is drawn as a spiral instead: triLaps passes shrinking to
+    // triInner and back out again (so the path closes), giving ~8x more track.
+    triLaps: 11,
+    triInner: 0.4,
+    // Butterfly silhouette: a radius profile swept monotonically around the centre.
+    // bfHalfTurns must be ODD so the half-path ends on the mirror axis and closes.
+    bfHalfTurns: 7,
+    bfInner: 0.4,
+    bfBase: 0.20,
+    bfUpperAmp: 0.95, bfUpperPos: 0.70, bfUpperWidth: 0.32,
+    bfLowerAmp: 0.52, bfLowerPos: -0.74, bfLowerWidth: 0.26,
+    formationRadius: 0.36,  // fraction of min(w, h)
+    palette: [
+      [20, 14, 10],    // near-black, monarch wing edge
+      [217, 92, 15],   // deep orange
+      [245, 158, 11],  // amber
+      [250, 204, 90],  // pale gold
+    ],
+  }, overrides);
+
+  function paletteColor(u) {
+    u = Math.max(0, Math.min(1, u));
+    const palette = CONFIG.palette;
+    const scaled = u * (palette.length - 1);
+    const i0 = Math.floor(scaled);
+    const i1 = Math.min(palette.length - 1, i0 + 1);
+    const f = scaled - i0;
+    const a = palette[i0], b = palette[i1];
+    return [
+      a[0] + (b[0] - a[0]) * f,
+      a[1] + (b[1] - a[1]) * f,
+      a[2] + (b[2] - a[2]) * f,
+    ];
+  }
+
+  function easeInOutCubic(x) {
+    return x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2;
+  }
+
+  // The butterfly is a radius profile swept monotonically around the centre, not
+  // the Temple Fay curve. Fay's curve is prettier standing still, but it's built
+  // from near-degenerate petals: travelling along it means running out to a petal
+  // tip and back down almost the same line, which reads as particles jittering back
+  // and forth however slowly they move. Here the angle only ever decreases, so a
+  // particle orbits the centre in one direction, always.
+  //
+  // The radius is a function of sin(phi), never of phi directly — that forces
+  // dR/dphi = 0 at phi = +/-90deg (on the mirror axis), so the half-path meets its
+  // own mirror smoothly instead of forming a kink there.
+  function wingRadius(s) {
+    return CONFIG.bfBase
+      + CONFIG.bfUpperAmp * Math.exp(-Math.pow((s - CONFIG.bfUpperPos) / CONFIG.bfUpperWidth, 2))
+      + CONFIG.bfLowerAmp * Math.exp(-Math.pow((s - CONFIG.bfLowerPos) / CONFIG.bfLowerWidth, 2));
+  }
+
+  // Half the butterfly: sweeps the angle down from the top of the axis through
+  // bfHalfTurns half-turns while the scale spirals inward, so nested wing outlines
+  // give the shape its density.
+  function butterflyHalf(w) {
+    const phi = Math.PI / 2 - w * Math.PI * CONFIG.bfHalfTurns;
+    const scale = CONFIG.bfInner + (1 - CONFIG.bfInner) * (1 - w);
+    const r = wingRadius(Math.sin(phi)) * scale;
+    return { x: Math.cos(phi) * r, y: Math.sin(phi) * r };
+  }
+
+  // The full path is that half followed by its own mirror, reversed — so
+  // raw(1 - v) is EXACTLY mirror(raw(v)). That identity is what lets the particles
+  // be sampled uniformly and still come out perfectly symmetric.
+  function butterflyRaw(v) {
+    if (v < 0.5) return butterflyHalf(2 * v);
+    const p = butterflyHalf(2 - 2 * v);
+    return { x: -p.x, y: p.y };
+  }
+
+  const TRIANGLE_VERTS = [{ x: 0, y: 1 }, { x: -0.866, y: -0.5 }, { x: 0.866, y: -0.5 }];
+  function triangleRaw(v) {
+    const phase = (v * CONFIG.triLaps) % 1;
+    // Spirals inward over the first half and back out over the second, so v=1 lands
+    // exactly where v=0 started and the path closes. Without this, particles would
+    // pop from the inner end back to the outer start once per lap.
+    const radius = CONFIG.triInner + (1 - CONFIG.triInner) * Math.abs(1 - 2 * v);
+    const edge = Math.floor(phase * 3);
+    const f = phase * 3 - edge;
+    const a = TRIANGLE_VERTS[edge], b = TRIANGLE_VERTS[(edge + 1) % 3];
+    return { x: (a.x + (b.x - a.x) * f) * radius, y: (a.y + (b.y - a.y) * f) * radius };
+  }
+
+  // Wraps a raw curve into a pointAt(u) that is centered, scaled to unit radius, and
+  // parametrized by ARC LENGTH. Constant du/dt through a raw parameter is not constant
+  // on-screen speed — both curves have stretches where a small step covers a lot of
+  // ground and stretches where it covers almost none, so particles would visibly speed
+  // up and slow down. The cumulative-distance table fixes that.
+  function buildShape(rawPointAt, samples) {
+    const raw = [];
+    for (let i = 0; i <= samples; i++) raw.push(rawPointAt(i / samples));
+
+    let cy = 0;
+    for (let i = 0; i < samples; i++) cy += raw[i].y;
+    cy /= samples;
+    // cx is pinned to 0 rather than averaged: both curves are mirror-symmetric about
+    // x=0 by construction, and a sampled average introduces a tiny offset that tilts
+    // that symmetry off-axis.
+    const cx = 0;
+
+    let maxR = 0;
+    for (let i = 0; i < samples; i++) maxR = Math.max(maxR, Math.hypot(raw[i].x - cx, raw[i].y - cy));
+
+    const cumulative = [0];
+    for (let i = 1; i <= samples; i++) {
+      cumulative.push(cumulative[i - 1] + Math.hypot(raw[i].x - raw[i - 1].x, raw[i].y - raw[i - 1].y));
+    }
+    const total = cumulative[samples];
+    const s = cumulative.map(function (value) { return value / total; }); // 0..1, monotonic
+
+    function pointAt(u) {
+      let lo = 0, hi = s.length - 1;
+      while (hi - lo > 1) {
+        const mid = (lo + hi) >> 1;
+        if (s[mid] <= u) lo = mid; else hi = mid;
+      }
+      const span = s[hi] - s[lo] || 1e-9;
+      const v = (lo + (u - s[lo]) / span) / samples;
+      const p = rawPointAt(v);
+      return { x: (p.x - cx) / maxR, y: (p.y - cy) / maxR };
+    }
+    // Total path length in normalized units, so the flow can be advanced by
+    // distance rather than by laps.
+    pointAt.arcLength = total / maxR;
+    return pointAt;
+  }
+
+  // 8000 rather than 4000: the arc-length table is piecewise-linear, so coarser
+  // sampling lets particles in sharp-curvature stretches drift off the shared
+  // speed. 8000 cuts that spread from ~1.16x to ~1.04x for a negligible load cost.
+  const SHAPES = {
+    butterfly: buildShape(butterflyRaw, 8000),
+    triangle: buildShape(triangleRaw, 8000),
+  };
+
+  // Both shapes satisfy raw(1 - v) === mirror(raw(v)), and arc length is symmetric
+  // too, so sampling uniformly at u = i/count makes particle i and particle
+  // count-i exact mirrors. Symmetry comes free from the parametrisation. An earlier
+  // version drew each particle twice at +/-x to force it, which worked but left the
+  // mirrored copies landing at arbitrary spots along the path, where they clumped
+  // against their neighbours and fused into visible doublets.
+  const particles = (function () {
+    const count = CONFIG.particleCount;
+    const result = [];
+    for (let i = 0; i < count; i++) {
+      const u0 = i / count; // fixed identity: this particle's slot in the flow, and its stagger delay
+      const bowSign = i % 2 === 0 ? 1 : -1;
+      result.push({
+        u0: u0,
+        delay: u0 * CONFIG.staggerSpread,
+        bowMag: (CONFIG.bowRange[0] + Math.random() * (CONFIG.bowRange[1] - CONFIG.bowRange[0])) * bowSign,
+        wanderPhase: Math.random() * Math.PI * 2,
+      });
+    }
+    return result;
+  })();
+
+  // One shared clock: which two formations are active, and how far the morph between
+  // them has gotten. When from === to the swarm is holding, and every particle just
+  // reads its own flowing point straight off that one shape.
+  const PERIOD = 2 * (CONFIG.hold + CONFIG.morph);
+  function transitionAt(t) {
+    let tc = t % PERIOD;
+    if (tc < CONFIG.hold) return { from: "butterfly", to: "butterfly", progress: 0 };
+    tc -= CONFIG.hold;
+    if (tc < CONFIG.morph) return { from: "butterfly", to: "triangle", progress: tc / CONFIG.morph };
+    tc -= CONFIG.morph;
+    if (tc < CONFIG.hold) return { from: "triangle", to: "triangle", progress: 0 };
+    tc -= CONFIG.hold;
+    return { from: "triangle", to: "butterfly", progress: tc / CONFIG.morph };
+  }
+
+  function resize() {
+    const rect = canvas.parentElement.getBoundingClientRect();
+    canvas.width = rect.width * dpr;
+    canvas.height = rect.height * dpr;
+  }
+  window.addEventListener("resize", resize);
+  resize();
+
+  const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  let start = null;
+  let lastTs = null;
+  let flowPhase = 0;
+  let rafId = null;
+
+  function draw(ts) {
+    if (start === null) { start = ts; lastTs = ts; }
+    const t = reduceMotion ? 0 : (ts - start) / 1000;
+    // Clamped so a backgrounded tab doesn't jump the swarm forward on return.
+    const dt = reduceMotion ? 0 : Math.min((ts - lastTs) / 1000, 0.1);
+    lastTs = ts;
+
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    const w = canvas.width / dpr, h = canvas.height / dpr;
+    ctx.clearRect(0, 0, w, h);
+
+    const cx = w / 2, cy = h / 2;
+    const formationRadius = Math.min(w, h) * CONFIG.formationRadius;
+    const trans = transitionAt(t);
+
+    // Advance the shared flow by distance. The rate depends on which shape is active,
+    // so it must be integrated incrementally — recomputing from absolute t would
+    // retroactively rescale all elapsed time and jump the swarm whenever the rate
+    // changed. Blended on trans.progress (shared) rather than each particle's
+    // staggered progress, so every particle advances at exactly one rate.
+    const fromLen = SHAPES[trans.from].arcLength;
+    const toLen = SHAPES[trans.to].arcLength;
+    flowPhase += dt * CONFIG.flowSpeed / (fromLen + (toLen - fromLen) * trans.progress);
+
+    for (let i = 0; i < particles.length; i++) {
+      const p = particles[i];
+
+      // Advances every frame regardless of hold/morph, so particles are always
+      // traveling along the active shape rather than parked on it.
+      let flowU = (p.u0 + flowPhase) % 1;
+      if (flowU < 0) flowU += 1;
+
+      const fromPt = SHAPES[trans.from](flowU);
+      const toPt = SHAPES[trans.to](flowU);
+
+      const local = Math.max(0, Math.min(1, (trans.progress - p.delay) / (1 - CONFIG.staggerSpread)));
+      const eased = easeInOutCubic(local);
+
+      const bx = fromPt.x + (toPt.x - fromPt.x) * eased;
+      const by = fromPt.y + (toPt.y - fromPt.y) * eased;
+
+      const dirX = toPt.x - fromPt.x, dirY = toPt.y - fromPt.y;
+      const dirLen = Math.hypot(dirX, dirY) || 1;
+
+      // Both scaled by sin(PI * eased), so they vanish exactly at rest and peak
+      // mid-flight — that's the bee-like buzz while the swarm is in transit.
+      const envelope = Math.sin(Math.PI * eased);
+      const bow = p.bowMag * envelope;
+      const wander = CONFIG.wanderAmp * envelope;
+
+      const nx = bx + (-dirY / dirLen) * bow + Math.sin(t * CONFIG.wanderFreq + p.wanderPhase) * wander;
+      const ny = by + (dirX / dirLen) * bow + Math.cos(t * CONFIG.wanderFreq * 1.3 + p.wanderPhase) * wander;
+
+      // Color from distance out from the center, not from particle index: distance is
+      // mirror-invariant, so a particle and its twin always match. An index-based
+      // sweep would color the two halves of a symmetric shape differently.
+      const rgb = paletteColor(1 - Math.min(1, Math.hypot(nx, ny)));
+      ctx.fillStyle = "rgba(" + rgb.join(",") + ",0.92)";
+
+      ctx.beginPath();
+      ctx.arc(cx + nx * formationRadius, cy + ny * formationRadius, CONFIG.dotSize, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    if (!reduceMotion) rafId = requestAnimationFrame(draw);
+  }
+  rafId = requestAnimationFrame(draw);
+
+  return {
+    stop: function () {
+      if (rafId) cancelAnimationFrame(rafId);
+      window.removeEventListener("resize", resize);
+    },
+  };
+}
+
+// Usage — the canvas sizes itself to its parent, so give the parent a real size:
+// <div style="position:relative;width:100%;height:420px;background:#0a0d16;">
+//   <canvas id="swarm"></canvas>
+// </div>
+initButterflySwarm(document.getElementById("swarm"));`,
+    preview: {
+      type: "html",
+      height: 380,
+      markup: `<div style="position:relative;width:100%;height:380px;background:#0a0d16;overflow:hidden;">
+  <canvas id="swarm" style="position:absolute;inset:0;width:100%;height:100%;"></canvas>
+</div>
+<script>
+  function initButterflySwarm(canvas, overrides) {
+    var ctx = canvas.getContext("2d");
+    var dpr = Math.min(window.devicePixelRatio || 1, 2);
+
+    var CONFIG = Object.assign({
+      particleCount: 650, hold: 2.4, morph: 3.0, staggerSpread: 0.55, flowSpeed: 0.2,
+      bowRange: [0.05, 0.13], wanderAmp: 0.035, wanderFreq: 2.1, dotSize: 1.5,
+      triLaps: 11, triInner: 0.4, formationRadius: 0.36,
+      bfHalfTurns: 7, bfInner: 0.4, bfBase: 0.20,
+      bfUpperAmp: 0.95, bfUpperPos: 0.70, bfUpperWidth: 0.32,
+      bfLowerAmp: 0.52, bfLowerPos: -0.74, bfLowerWidth: 0.26,
+      palette: [[20,14,10],[217,92,15],[245,158,11],[250,204,90]]
+    }, overrides);
+
+    function paletteColor(u) {
+      u = Math.max(0, Math.min(1, u));
+      var palette = CONFIG.palette;
+      var scaled = u * (palette.length - 1);
+      var i0 = Math.floor(scaled);
+      var i1 = Math.min(palette.length - 1, i0 + 1);
+      var f = scaled - i0;
+      var a = palette[i0], b = palette[i1];
+      return [a[0]+(b[0]-a[0])*f, a[1]+(b[1]-a[1])*f, a[2]+(b[2]-a[2])*f];
+    }
+    function easeInOutCubic(x) { return x < 0.5 ? 4*x*x*x : 1 - Math.pow(-2*x+2,3)/2; }
+
+    function wingRadius(s) {
+      return CONFIG.bfBase
+        + CONFIG.bfUpperAmp*Math.exp(-Math.pow((s-CONFIG.bfUpperPos)/CONFIG.bfUpperWidth,2))
+        + CONFIG.bfLowerAmp*Math.exp(-Math.pow((s-CONFIG.bfLowerPos)/CONFIG.bfLowerWidth,2));
+    }
+    function butterflyHalf(w) {
+      var phi = Math.PI/2 - w*Math.PI*CONFIG.bfHalfTurns;
+      var scale = CONFIG.bfInner + (1-CONFIG.bfInner)*(1-w);
+      var r = wingRadius(Math.sin(phi))*scale;
+      return { x: Math.cos(phi)*r, y: Math.sin(phi)*r };
+    }
+    function butterflyRaw(v) {
+      if (v < 0.5) return butterflyHalf(2*v);
+      var p = butterflyHalf(2 - 2*v);
+      return { x: -p.x, y: p.y };
+    }
+    var TRIANGLE_VERTS = [{x:0,y:1},{x:-0.866,y:-0.5},{x:0.866,y:-0.5}];
+    function triangleRaw(v) {
+      var phase = (v * CONFIG.triLaps) % 1;
+      var radius = CONFIG.triInner + (1 - CONFIG.triInner) * Math.abs(1 - 2*v);
+      var edge = Math.floor(phase*3);
+      var f = phase*3 - edge;
+      var a = TRIANGLE_VERTS[edge], b = TRIANGLE_VERTS[(edge+1)%3];
+      return { x: (a.x+(b.x-a.x)*f)*radius, y: (a.y+(b.y-a.y)*f)*radius };
+    }
+
+    function buildShape(rawPointAt, samples) {
+      var raw = [];
+      for (var i = 0; i <= samples; i++) raw.push(rawPointAt(i/samples));
+      var cy = 0;
+      for (var i = 0; i < samples; i++) cy += raw[i].y;
+      cy /= samples;
+      var cx = 0;
+      var maxR = 0;
+      for (var i = 0; i < samples; i++) maxR = Math.max(maxR, Math.hypot(raw[i].x-cx, raw[i].y-cy));
+      var cumulative = [0];
+      for (var i = 1; i <= samples; i++) cumulative.push(cumulative[i-1] + Math.hypot(raw[i].x-raw[i-1].x, raw[i].y-raw[i-1].y));
+      var total = cumulative[samples];
+      var s = cumulative.map(function (value) { return value/total; });
+      function pointAt(u) {
+        var lo = 0, hi = s.length - 1;
+        while (hi - lo > 1) { var mid = (lo+hi)>>1; if (s[mid] <= u) lo = mid; else hi = mid; }
+        var span = s[hi] - s[lo] || 1e-9;
+        var v = (lo + (u - s[lo])/span) / samples;
+        var p = rawPointAt(v);
+        return { x: (p.x-cx)/maxR, y: (p.y-cy)/maxR };
+      }
+      pointAt.arcLength = total / maxR;
+      return pointAt;
+    }
+
+    var SHAPES = { butterfly: buildShape(butterflyRaw, 8000), triangle: buildShape(triangleRaw, 8000) };
+
+    var particles = (function () {
+      var count = CONFIG.particleCount;
+      var result = [];
+      for (var i = 0; i < count; i++) {
+        var u0 = i/count;
+        var bowSign = i % 2 === 0 ? 1 : -1;
+        result.push({
+          u0: u0,
+          delay: u0 * CONFIG.staggerSpread,
+          bowMag: (CONFIG.bowRange[0] + Math.random()*(CONFIG.bowRange[1]-CONFIG.bowRange[0])) * bowSign,
+          wanderPhase: Math.random() * Math.PI * 2
+        });
+      }
+      return result;
+    })();
+
+    var PERIOD = 2 * (CONFIG.hold + CONFIG.morph);
+    function transitionAt(t) {
+      var tc = t % PERIOD;
+      if (tc < CONFIG.hold) return { from:"butterfly", to:"butterfly", progress:0 };
+      tc -= CONFIG.hold;
+      if (tc < CONFIG.morph) return { from:"butterfly", to:"triangle", progress: tc/CONFIG.morph };
+      tc -= CONFIG.morph;
+      if (tc < CONFIG.hold) return { from:"triangle", to:"triangle", progress:0 };
+      tc -= CONFIG.hold;
+      return { from:"triangle", to:"butterfly", progress: tc/CONFIG.morph };
+    }
+
+    function resize() {
+      var rect = canvas.parentElement.getBoundingClientRect();
+      canvas.width = rect.width * dpr;
+      canvas.height = rect.height * dpr;
+    }
+    window.addEventListener("resize", resize);
+    resize();
+
+    var reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    var start = null;
+    var lastTs = null;
+    var flowPhase = 0;
+
+    function draw(ts) {
+      if (start === null) { start = ts; lastTs = ts; }
+      var t = reduceMotion ? 0 : (ts - start)/1000;
+      var dt = reduceMotion ? 0 : Math.min((ts - lastTs)/1000, 0.1);
+      lastTs = ts;
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      var w = canvas.width/dpr, h = canvas.height/dpr;
+      ctx.clearRect(0, 0, w, h);
+      var cx = w/2, cy = h/2;
+      var formationRadius = Math.min(w, h) * CONFIG.formationRadius;
+      var trans = transitionAt(t);
+      var fromLen = SHAPES[trans.from].arcLength;
+      var toLen = SHAPES[trans.to].arcLength;
+      flowPhase += dt * CONFIG.flowSpeed / (fromLen + (toLen - fromLen) * trans.progress);
+
+      for (var i = 0; i < particles.length; i++) {
+        var p = particles[i];
+        var flowU = (p.u0 + flowPhase) % 1;
+        if (flowU < 0) flowU += 1;
+        var fromPt = SHAPES[trans.from](flowU);
+        var toPt = SHAPES[trans.to](flowU);
+        var local = Math.max(0, Math.min(1, (trans.progress - p.delay)/(1 - CONFIG.staggerSpread)));
+        var eased = easeInOutCubic(local);
+        var bx = fromPt.x + (toPt.x-fromPt.x)*eased;
+        var by = fromPt.y + (toPt.y-fromPt.y)*eased;
+        var dirX = toPt.x-fromPt.x, dirY = toPt.y-fromPt.y;
+        var dirLen = Math.hypot(dirX, dirY) || 1;
+        var envelope = Math.sin(Math.PI*eased);
+        var bow = p.bowMag * envelope;
+        var wander = CONFIG.wanderAmp * envelope;
+        var nx = bx + (-dirY/dirLen)*bow + Math.sin(t*CONFIG.wanderFreq + p.wanderPhase)*wander;
+        var ny = by + (dirX/dirLen)*bow + Math.cos(t*CONFIG.wanderFreq*1.3 + p.wanderPhase)*wander;
+        var rgb = paletteColor(1 - Math.min(1, Math.hypot(nx, ny)));
+        ctx.fillStyle = "rgba(" + rgb.join(",") + ",0.92)";
+        ctx.beginPath();
+        ctx.arc(cx + nx*formationRadius, cy + ny*formationRadius, CONFIG.dotSize, 0, Math.PI*2);
+        ctx.fill();
+      }
+      if (!reduceMotion) requestAnimationFrame(draw);
+    }
+    requestAnimationFrame(draw);
+  }
+
+  initButterflySwarm(document.getElementById("swarm"));
 <\/script>`,
     },
   },

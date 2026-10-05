@@ -1,7 +1,7 @@
 {
   "generatedFrom": "snippets/",
   "generatedBy": "scripts/build-data.js",
-  "count": 17,
+  "count": 18,
   "snippets": [
     {
       "id": "curve-page-transition",
@@ -233,6 +233,20 @@
       ],
       "difficulty": "Advanced",
       "description": "A cloud of particles streams around a butterfly, then swarms together into a triangle and back — both shapes built so their mirror is exactly the reverse of their own path, which makes the formation perfectly symmetric and evenly spaced without any special-casing, while every particle orbits in one unbroken direction."
+    },
+    {
+      "id": "expanding-card-row",
+      "title": "Expanding Card Row",
+      "language": "javascript",
+      "tags": [
+        "animation",
+        "carousel",
+        "spring-physics",
+        "canvas",
+        "accessibility"
+      ],
+      "difficulty": "Advanced",
+      "description": "A horizontal row where the open card is wide and the rest are narrow pills with vertical titles. Opening one grows it while the last shrinks and the row glides, all on a single spring clock, and the row scrolls sideways by wheel, touch fling, themed scrollbar, dots or arrow keys."
     }
   ]
 }

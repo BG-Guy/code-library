@@ -1,0 +1,967 @@
+/* Expanding Card Row — styles. See expandingCardRow.ts for what it is and
+   how to mount it. Everything is scoped under .ecr (the container you mount
+   into). Override these on .ecr (or a parent) to fit your site:
+
+     --ecr-ink            borders, shadows, dark text
+     --ecr-bg             the section's background — the open card's corner
+                          notch is cut in this colour, so keep them matching
+     --ecr-light          text on the cards
+     --ecr-accent         focus rings, the "(14)" count
+     --ecr-accent-2       the scrollbar thumb, the heading's <em>/<span>
+     --ecr-font-display   headings and card titles
+     --ecr-nav-h          height of a fixed header, if the page has one
+     --ecr-max-width      content width
+
+   Card colours are themes: .ecr-theme-<name> sets four variables (two
+   gradient colours and two soft highlights). Add your own the same way and
+   pass the names in the `themes` option. */
+
+.ecr {
+  --ecr-ink: #333333;
+  --ecr-bg: #fef9e7;
+  --ecr-light: #fef9e7;
+  --ecr-accent: #6c3baa;
+  --ecr-accent-2: #3baa99;
+  --ecr-font-display: inherit;
+  --ecr-nav-h: 0px;
+  --ecr-max-width: 80rem;
+
+  /* The cards' outline: a thick ink border and a hard drop shadow. */
+  --ecr-border: 3px;
+  --ecr-drop: 6px;
+
+  /* Motion for the CSS side (the body lifting in, the corner link popping,
+     the page dots): the same iOS-style spring the script moves the cards
+     with (SwiftUI's default — 0.55s response, 0.825 damping, about 1%
+     overshoot), sampled into linear() below. */
+  --ecr-ease: cubic-bezier(0.32, 0.72, 0, 1);
+  --ecr-dur: 0.65s;
+  --ecr-pop: cubic-bezier(0.34, 1.56, 0.64, 1);
+
+  box-sizing: border-box;
+  padding-inline: 1.5rem;
+  background: var(--ecr-bg);
+  color: var(--ecr-ink);
+}
+
+.ecr *,
+.ecr *::before,
+.ecr *::after {
+  box-sizing: border-box;
+}
+
+@supports (transition-timing-function: linear(0, 1)) {
+  .ecr {
+    --ecr-ease: linear(
+      0, 0.0348 3.33%, 0.1189 6.67%, 0.2284 10%, 0.3465 13.33%, 0.4625 16.67%,
+      0.5696 20%, 0.6643 23.33%, 0.7451 26.67%, 0.812 30%, 0.8659 33.33%,
+      0.9082 36.67%, 0.9405 40%, 0.9646 43.33%, 0.9819 46.67%, 0.9938 50%,
+      1.0017 53.33%, 1.0065 56.67%, 1.0091 60%, 1.0101 63.33%, 1.0101 66.67%,
+      1.0094 70%, 1.0084 73.33%, 1.0072 76.67%, 1.006 80%, 1.0039 86.67%,
+      1.0022 93.33%, 1
+    );
+    --ecr-dur: 0.75s;
+  }
+}
+
+@media (min-width: 640px) {
+  .ecr {
+    padding-inline: 2.5rem;
+  }
+}
+
+.ecr-inner {
+  width: 100%;
+  max-width: var(--ecr-max-width);
+  margin-inline: auto;
+}
+
+/* fillScreen: the section is one screen tall, its content centred in the
+   space under a fixed header (--ecr-nav-h). The script glides the page to
+   it on wheel scrolls; on touch screens the page snaps to it. */
+.ecr-fill {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-height: 100vh;
+  min-height: 100svh;
+  padding-top: calc(var(--ecr-nav-h) + 1.25rem);
+  padding-bottom: 1.5rem;
+  scroll-snap-align: start;
+}
+
+@media (hover: none) and (pointer: coarse) {
+  html:has(.ecr-fill) {
+    scroll-snap-type: y proximity;
+  }
+}
+
+.ecr:not(.ecr-fill) {
+  padding-block: 6rem;
+}
+
+/* ── Heading ──────────────────────────────────────────────────────────── */
+
+.ecr-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 1.5rem;
+  margin-bottom: 2.5rem;
+}
+
+.ecr-heading {
+  margin: 0;
+  font-family: var(--ecr-font-display);
+  font-size: 2.25rem;
+  font-weight: 800;
+  line-height: 2.5rem;
+  letter-spacing: -0.025em;
+}
+
+.ecr-heading em,
+.ecr-heading span {
+  font-style: normal;
+  color: var(--ecr-accent-2);
+}
+
+.ecr-count {
+  display: none;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--ecr-accent);
+}
+
+@media (min-width: 640px) {
+  .ecr-heading {
+    font-size: 3rem;
+    line-height: 1;
+  }
+  .ecr-count {
+    display: block;
+  }
+}
+
+/* ── The row ──────────────────────────────────────────────────────────── */
+
+/* The window onto the row. --ecr-p pills sit beside the open card, and the
+   open card gets whatever width is left (100cqw = this element's width), so
+   with a card open in its slot the cards on screen fill it exactly. Pills
+   are --ecr-wc wide whether or not a card is open, so the row is wider
+   than this window and scrolls sideways (the script reads these same
+   values). The bottom padding keeps the cards' drop shadow inside the
+   clip; overflow: clip (not hidden) so focusing an off-screen card can't
+   scroll the row out of place. */
+.ecr-viewport {
+  --ecr-p: 1;
+  --ecr-wc: 3.5rem;
+  --ecr-gap: 0.5rem;
+  --ecr-h: 30rem;
+  --ecr-step: calc(var(--ecr-wc) + var(--ecr-gap));
+  --ecr-we: calc(100cqw - var(--ecr-p) * var(--ecr-step));
+  container-type: inline-size;
+  overflow: clip;
+  padding-bottom: var(--ecr-drop);
+  border-radius: 1.5rem;
+  touch-action: pan-y;
+}
+
+@media (min-width: 640px) {
+  .ecr-viewport {
+    --ecr-p: 2;
+    --ecr-wc: 5rem;
+    --ecr-gap: 0.625rem;
+  }
+}
+
+@media (min-width: 1024px) {
+  .ecr-viewport {
+    --ecr-p: 3;
+    --ecr-wc: 7rem;
+    --ecr-gap: 0.75rem;
+    --ecr-h: 32rem;
+  }
+}
+
+/* fillScreen: the cards get the height the screen has left after the
+   header, heading, scrollbar, controls, padding and their own shadow
+   (--ecr-around), within a sensible range. */
+.ecr-fill {
+  --ecr-head-h: 0rem;
+  --ecr-around: calc(var(--ecr-nav-h) + var(--ecr-head-h) + 8.75rem + var(--ecr-drop));
+}
+
+.ecr-fill.ecr-has-head {
+  --ecr-head-h: 5rem;
+}
+
+@media (min-width: 640px) {
+  .ecr-fill.ecr-has-head {
+    --ecr-head-h: 5.5rem;
+  }
+}
+
+.ecr-fill .ecr-viewport {
+  --ecr-h: clamp(22rem, 100svh - var(--ecr-around), 30rem);
+}
+
+@media (min-width: 1024px) {
+  .ecr-fill .ecr-viewport {
+    --ecr-h: clamp(22rem, 100svh - var(--ecr-around), 32rem);
+  }
+}
+
+/* The row itself. Its translateX is set every frame by the script's spring
+   engine, not by a CSS transition. */
+.ecr-track {
+  display: flex;
+  gap: var(--ecr-gap);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  will-change: transform;
+}
+
+/* ── Cards ────────────────────────────────────────────────────────────── */
+
+/* A card. Only its width changes — its content is laid out at the open
+   width and clipped, so nothing reflows while it grows or shrinks. These
+   widths are the starting sizes; from the first frame on, the script sets
+   each card's width itself (a spring, so no CSS transition here). */
+.ecr-card {
+  position: relative;
+  flex: none;
+  width: var(--ecr-wc);
+  height: var(--ecr-h);
+  color: var(--ecr-light);
+}
+
+.ecr-card.is-active {
+  width: var(--ecr-we);
+}
+
+/* Colour themes: a two-tone gradient (--art-b dark → --art-a) under two
+   soft highlights. Darkest at the top-left, where the title sits. */
+.ecr-theme-purple {
+  --art-a: #8a55d0;
+  --art-b: #2f1559;
+  --art-hi: rgb(205 170 255 / 0.32);
+  --art-lo: rgb(59 170 153 / 0.38);
+}
+
+.ecr-theme-green {
+  --art-a: #34a594;
+  --art-b: #0d3f38;
+  --art-hi: rgb(170 240 225 / 0.3);
+  --art-lo: rgb(108 59 170 / 0.32);
+}
+
+.ecr-theme-gold {
+  --art-a: #d9a441;
+  --art-b: #5a3507;
+  --art-hi: rgb(255 226 160 / 0.32);
+  --art-lo: rgb(108 59 170 / 0.3);
+}
+
+.ecr-theme-ink {
+  --art-a: #4a4a4a;
+  --art-b: #161616;
+  --art-hi: rgb(108 59 170 / 0.4);
+  --art-lo: rgb(59 170 153 / 0.32);
+}
+
+/* The rounded, clipped part of the card, with the ink border and drop
+   shadow. The background stops inside the border, so no card colour
+   fringes its outer edge. The corner link's notch is kept outside this
+   clip on purpose — see .ecr-socket. */
+.ecr-clip {
+  position: absolute;
+  inset: 0;
+  border: var(--ecr-border) solid var(--ecr-ink);
+  border-radius: 1.5rem;
+  overflow: clip;
+  isolation: isolate;
+  background: var(--art-b) padding-box;
+  box-shadow: 0 var(--ecr-drop) 0 0 var(--ecr-ink);
+}
+
+/* The card's art: a fixed, open-width layer centred on the card, so a
+   growing card reveals more of it instead of stretching it. Pure CSS — a
+   few soft gradients, no images and no blur filter (slow on Safari). */
+.ecr-art {
+  position: absolute;
+  inset-block: 0;
+  left: 50%;
+  z-index: 0;
+  width: var(--ecr-we);
+  transform: translateX(-50%);
+  background:
+    linear-gradient(105deg, transparent 32%, rgb(255 255 255 / 0.09) 44%, transparent 56%),
+    radial-gradient(55% 60% at 80% 22%, var(--art-hi), transparent 70%),
+    radial-gradient(65% 70% at 15% 95%, var(--art-lo), transparent 70%),
+    linear-gradient(150deg, var(--art-b) 0%, var(--art-a) 100%);
+  transition: transform 0.6s var(--ecr-ease);
+}
+
+/* Faint static wavy lines, on the pills. On the open card they fade out
+   for the moving lines (.ecr-flow) — one animated canvas, not one per
+   card. */
+.ecr-art::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 800 480' preserveAspectRatio='none'%3E%3Cg fill='none' stroke='%23fff' stroke-width='1.2'%3E%3Cpath vector-effect='non-scaling-stroke' stroke-opacity='.16' d='M-20 330C150 250 290 410 470 300S760 130 840 210'/%3E%3Cpath vector-effect='non-scaling-stroke' stroke-opacity='.13' d='M-20 362C160 282 300 442 480 332S770 162 840 242'/%3E%3Cpath vector-effect='non-scaling-stroke' stroke-opacity='.1' d='M-20 394C170 314 310 474 490 364S780 194 840 274'/%3E%3Cpath vector-effect='non-scaling-stroke' stroke-opacity='.08' d='M-20 110C130 50 270 190 430 120S710 20 840 70'/%3E%3C/g%3E%3C/svg%3E")
+    center / 100% 100% no-repeat;
+  pointer-events: none;
+  transition: opacity 0.4s ease 0.2s;
+}
+
+.ecr-card.is-active .ecr-art::after {
+  opacity: 0;
+  transition: opacity 0.25s ease;
+}
+
+/* The moving lines (flowingLines.ts), a single canvas the script moves
+   into whichever card is open. Laid out at the open width and pinned left
+   like the body, so it's revealed — not stretched — as the card grows. */
+.ecr-flow {
+  position: absolute;
+  inset-block: 0;
+  left: 0;
+  z-index: 0;
+  width: var(--ecr-we);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease;
+}
+
+.ecr-card.is-active .ecr-flow {
+  opacity: 0.75;
+  transition: opacity 0.6s ease 0.25s;
+}
+
+.ecr-flow canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.ecr-card.is-animating .ecr-art {
+  will-change: transform;
+}
+
+@media (hover: hover) {
+  .ecr-card:not(.is-active):hover .ecr-art {
+    transform: translateX(-50%) scale(1.06);
+  }
+}
+
+/* The pill: the whole card is the button, with the number at the top and
+   the title running bottom-to-top. It fades out as the card opens, and
+   back in once a closing card has mostly shrunk. */
+.ecr-trigger {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin: 0;
+  padding: 1.25rem 0;
+  border: 0;
+  border-radius: inherit;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  transition: opacity 0.3s ease 0.22s;
+}
+
+.ecr-card.is-active .ecr-trigger {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.12s ease;
+}
+
+.ecr-trigger:focus-visible {
+  outline: 3px solid var(--ecr-light);
+  outline-offset: -7px;
+}
+
+.ecr-label-n {
+  font-family: var(--ecr-font-display);
+  font-size: 0.8rem;
+  opacity: 0.75;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Physical top/bottom margins, not margin-block: in vertical writing the
+   "block" axis is horizontal, so margin-block wouldn't centre it. */
+.ecr-label-t {
+  margin-top: auto;
+  margin-bottom: auto;
+  writing-mode: vertical-rl;
+  transform: rotate(180deg);
+  white-space: nowrap;
+  font-family: var(--ecr-font-display);
+  font-weight: 700;
+  font-size: 1rem;
+  line-height: 1.1;
+  letter-spacing: -0.01em;
+}
+
+@media (min-width: 640px) {
+  .ecr-label-t {
+    font-size: 1.25rem;
+  }
+}
+
+@media (min-width: 1024px) {
+  .ecr-label-t {
+    font-size: 1.5rem;
+  }
+}
+
+/* The open card's content: always laid out at the open card's inner width
+   (so it never reflows mid-spring) and pinned to its left edge. It fades
+   and lifts in once the card is opening, and drops out fast when it
+   closes. Also a size container, so it can drop the points panel when
+   narrow or short. Clicking anywhere on it closes the card. */
+.ecr-body {
+  container: ecr-body / size;
+  position: absolute;
+  inset-block: 0;
+  left: 0;
+  z-index: 2;
+  width: calc(var(--ecr-we) - 2 * var(--ecr-border));
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 1.5rem;
+  padding: 1.25rem;
+  opacity: 0;
+  transform: translateY(0.75rem);
+  pointer-events: none;
+  transition:
+    opacity 0.15s ease,
+    transform 0.2s ease;
+}
+
+.ecr-card.is-active .ecr-body {
+  cursor: pointer;
+  opacity: 1;
+  transform: none;
+  pointer-events: auto;
+  transition:
+    opacity 0.35s ease 0.18s,
+    transform 0.6s var(--ecr-ease) 0.12s;
+}
+
+@media (min-width: 640px) {
+  .ecr-body {
+    padding: 1.75rem;
+  }
+}
+
+@media (min-width: 1024px) {
+  .ecr-body {
+    padding: 2.25rem;
+  }
+}
+
+.ecr-body-n {
+  display: block;
+  font-family: var(--ecr-font-display);
+  font-size: 0.85rem;
+  opacity: 0.7;
+  font-variant-numeric: tabular-nums;
+}
+
+/* fit-content so the keyboard focus ring (focus moves here when a card
+   opens from the keyboard) hugs the title instead of spanning the card. */
+.ecr-body-title {
+  width: fit-content;
+  margin: 0.5rem 0 0;
+  font-family: var(--ecr-font-display);
+  font-weight: 800;
+  font-size: 2rem;
+  line-height: 1.02;
+  letter-spacing: -0.02em;
+}
+
+.ecr-body-title:focus {
+  outline: none;
+}
+
+.ecr-body-title:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 4px;
+  border-radius: 0.25rem;
+}
+
+.ecr-body-copy {
+  margin: 0.9rem 0 0;
+  max-width: 30rem;
+  font-size: 0.95rem;
+  line-height: 1.5;
+  opacity: 0.85;
+}
+
+@media (min-width: 640px) {
+  .ecr-body-title {
+    font-size: 2.5rem;
+  }
+  .ecr-body-copy {
+    font-size: 1rem;
+  }
+}
+
+@media (min-width: 1024px) {
+  .ecr-body-title {
+    font-size: 3.25rem;
+  }
+  .ecr-body-copy {
+    font-size: 1.05rem;
+  }
+}
+
+/* The points, in a translucent panel at the bottom-left, kept clear of the
+   corner link. Translucent rather than frosted — a backdrop blur would be
+   re-rendered every frame of the spring. */
+.ecr-points {
+  display: grid;
+  gap: 0.6rem;
+  max-width: min(24rem, calc(100% - 6rem));
+  margin: 0;
+  padding: 1rem 1.25rem;
+  list-style: none;
+  border: 1px solid rgb(255 255 255 / 0.2);
+  border-radius: 1.25rem;
+  background: rgb(0 0 0 / 0.22);
+  font-size: 0.9rem;
+  line-height: 1.35;
+}
+
+.ecr-points li {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.6rem;
+}
+
+.ecr-points li::before {
+  content: "";
+  flex: none;
+  width: 0.45rem;
+  height: 0.45rem;
+  margin-top: 0.42em;
+  border-radius: 999px;
+  background: currentColor;
+  opacity: 0.8;
+}
+
+@container ecr-body (max-width: 26rem) or (max-height: 26rem) {
+  .ecr-points {
+    display: none;
+  }
+}
+
+/* The open card's close button (top-right). The card closes on any click
+   too, but this gives keyboard and screen-reader users a real control. */
+.ecr-close {
+  position: absolute;
+  top: 1rem;
+  right: 1rem;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  margin: 0;
+  padding: 0;
+  border: 1px solid rgb(255 255 255 / 0.3);
+  border-radius: 999px;
+  background: rgb(0 0 0 / 0.18);
+  color: var(--ecr-light);
+  cursor: pointer;
+  transition:
+    background-color 0.2s ease,
+    transform 0.25s var(--ecr-ease);
+}
+
+.ecr-close:hover {
+  background: rgb(0 0 0 / 0.34);
+}
+
+.ecr-close:active {
+  transform: scale(0.92);
+}
+
+.ecr-close:focus-visible {
+  outline: 2px solid var(--ecr-light);
+  outline-offset: 2px;
+}
+
+@media (min-width: 1024px) {
+  .ecr-close {
+    top: 1.5rem;
+    right: 1.5rem;
+  }
+}
+
+/* ── The open card's corner link ──────────────────────────────────────── */
+
+/* The link sits in a notch cut into the card's bottom-right corner. The
+   notch is a section-coloured (--ecr-bg) square with a rounded inner
+   corner; the two pseudo-elements are the fillets where it meets the
+   card's right and bottom edges, rounded like the card's own corners. The
+   card's ink border runs on round the notch: the socket's top and left
+   border, then an ink ring in each fillet. The socket also reaches down
+   over the card's drop shadow, so the shadow stops at the notch, and the
+   bottom fillet draws the shadow's end following its curve. It rides the
+   card's right edge as it grows, and pops in once the card is open.
+
+   It sits outside .ecr-clip and overhangs the card by 1px on the right and
+   bottom, and the fillets overlap it by 1px: wherever two painted edges
+   share a fractional-pixel line, anti-aliasing would let a sliver of the
+   card's colour bleed through, so every shared edge is covered by a solid
+   pixel instead. The fillets are centred exactly on their corners'
+   centres, so their rings meet the card's border without a step, and
+   their curves are smoothed over one device pixel (--aa is half of one). */
+.ecr-socket {
+  --socket: 4.25rem;
+  --socket-pad: 0.45rem;
+  --fillet: 1.5rem; /* the card's corner radius */
+  --aa: 0.5px;
+  --ring: radial-gradient(
+    circle at 0 0,
+    transparent calc(var(--fillet) - var(--ecr-border) - var(--aa)),
+    var(--ecr-ink) calc(var(--fillet) - var(--ecr-border) + var(--aa)),
+    var(--ecr-ink) calc(var(--fillet) - var(--aa)),
+    var(--ecr-bg) calc(var(--fillet) + var(--aa))
+  );
+  position: absolute;
+  right: -1px;
+  bottom: calc(-1px - var(--ecr-drop));
+  z-index: 3;
+  width: calc(var(--socket) + 1px + var(--ecr-border));
+  height: calc(var(--socket) + 1px + var(--ecr-drop) + var(--ecr-border));
+  padding: var(--socket-pad) 1px calc(1px + var(--ecr-drop)) var(--socket-pad);
+  border-top: var(--ecr-border) solid var(--ecr-ink);
+  border-left: var(--ecr-border) solid var(--ecr-ink);
+  border-top-left-radius: calc(1.6rem + var(--ecr-border));
+  background: var(--ecr-bg);
+  opacity: 0;
+  transform: scale(0.6);
+  transform-origin: 100% 100%;
+  transition:
+    opacity 0.12s ease,
+    transform 0.2s ease;
+}
+
+.ecr-socket::before,
+.ecr-socket::after {
+  content: "";
+  position: absolute;
+  width: calc(var(--fillet) + 1px);
+}
+
+.ecr-socket::before {
+  right: 0;
+  bottom: calc(100% - 1px);
+  height: calc(var(--fillet) + 1px);
+  background: var(--ring);
+}
+
+/* The bottom fillet also reaches down over the drop shadow and draws its
+   end: ink inside the fillet's curve moved one shadow-depth down, so the
+   shadow wraps the curve as it does round the card's other corners. On
+   top, ink inside the curve itself (the ring); the mask then cuts the
+   card's side of the curve back out. */
+.ecr-socket::after {
+  right: calc(100% - 1px);
+  bottom: 0;
+  height: calc(var(--fillet) + var(--ecr-drop) + 1px);
+  background:
+    radial-gradient(
+      circle at 0 0,
+      var(--ecr-ink) calc(var(--fillet) - var(--aa)),
+      transparent calc(var(--fillet) + var(--aa))
+    ),
+    radial-gradient(
+      circle at 0 var(--ecr-drop),
+      var(--ecr-ink) calc(var(--fillet) - var(--aa)),
+      var(--ecr-bg) calc(var(--fillet) + var(--aa))
+    );
+  -webkit-mask: radial-gradient(
+    circle at 0 0,
+    transparent calc(var(--fillet) - var(--ecr-border) - var(--aa)),
+    #000 calc(var(--fillet) - var(--ecr-border) + var(--aa))
+  );
+  mask: radial-gradient(
+    circle at 0 0,
+    transparent calc(var(--fillet) - var(--ecr-border) - var(--aa)),
+    #000 calc(var(--fillet) - var(--ecr-border) + var(--aa))
+  );
+}
+
+.ecr-card.is-active .ecr-socket {
+  opacity: 1;
+  transform: none;
+  transition:
+    opacity 0.3s ease 0.3s,
+    transform 0.55s var(--ecr-ease) 0.25s;
+}
+
+@media (min-resolution: 2dppx) {
+  .ecr-socket {
+    --aa: 0.25px;
+  }
+}
+
+@media (min-width: 640px) {
+  .ecr-socket {
+    --socket: 5rem;
+    --socket-pad: 0.5rem;
+  }
+}
+
+@media (min-width: 1024px) {
+  .ecr-socket {
+    --socket: 5.5rem;
+  }
+}
+
+.ecr-go {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  border-radius: 999px;
+  background: var(--ecr-ink);
+  color: var(--ecr-light);
+  transition:
+    transform 0.25s var(--ecr-ease),
+    background-color 0.2s ease;
+}
+
+.ecr-go svg {
+  transition: transform 0.25s var(--ecr-ease);
+}
+
+.ecr-go:hover {
+  background: color-mix(in srgb, var(--ecr-ink) 80%, #000);
+}
+
+.ecr-go:hover svg {
+  transform: translateX(3px);
+}
+
+.ecr-go:active {
+  transform: scale(0.94);
+}
+
+.ecr-go:focus-visible {
+  outline: 3px solid var(--ecr-accent);
+  outline-offset: 3px;
+}
+
+/* ── Scrollbar ────────────────────────────────────────────────────────── */
+
+/* An ink-bordered track, and a coloured thumb with an ink border and a
+   hard shadow that pops up while the bar is hovered or dragged. The whole
+   strip is the hit area: press anywhere to jump there, then drag. The
+   thumb's position and length are set from the row every frame. */
+.ecr-scroll {
+  position: relative;
+  display: flex;
+  align-items: center;
+  height: 1.75rem;
+  margin-top: 0.75rem;
+  cursor: pointer;
+  touch-action: none;
+  user-select: none;
+}
+
+.ecr-scroll-track {
+  flex: 1;
+  height: 0.75rem;
+  border: 2px solid var(--ecr-ink);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--ecr-ink) 8%, transparent);
+}
+
+.ecr-scroll-thumb {
+  position: absolute;
+  top: 50%;
+  left: 0;
+  width: 3rem;
+  height: 1.25rem;
+  margin-top: -0.625rem;
+  border: 3px solid var(--ecr-ink);
+  border-radius: 999px;
+  background: var(--ecr-accent-2);
+  box-shadow: 0 3px 0 0 var(--ecr-ink);
+  cursor: grab;
+  transition:
+    translate 0.35s var(--ecr-pop),
+    box-shadow 0.35s var(--ecr-pop);
+}
+
+@media (hover: hover) {
+  .ecr-scroll:hover .ecr-scroll-thumb {
+    translate: 0 -2px;
+    box-shadow: 0 5px 0 0 var(--ecr-ink);
+  }
+}
+
+.ecr-scroll.is-grabbed,
+.ecr-scroll.is-grabbed .ecr-scroll-thumb {
+  cursor: grabbing;
+}
+
+.ecr-scroll.is-grabbed .ecr-scroll-thumb {
+  translate: 0 -2px;
+  box-shadow: 0 5px 0 0 var(--ecr-ink);
+}
+
+/* ── Controls: counter, page dots, prev / next ────────────────────────── */
+
+.ecr-controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-top: 0.75rem;
+}
+
+.ecr-counter {
+  display: none;
+  min-width: 4.5rem;
+  font-family: var(--ecr-font-display);
+  font-size: 0.9rem;
+  color: color-mix(in srgb, var(--ecr-ink) 55%, transparent);
+  font-variant-numeric: tabular-nums;
+}
+
+@media (min-width: 640px) {
+  .ecr-counter {
+    display: block;
+  }
+}
+
+/* iOS-style page dots: the current one stretches into a pill. */
+.ecr-dots {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+@media (min-width: 640px) {
+  .ecr-dots {
+    gap: 0.4rem;
+  }
+}
+
+.ecr-dot {
+  position: relative;
+  width: 0.5rem;
+  height: 0.5rem;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--ecr-ink) 20%, transparent);
+  cursor: pointer;
+  transition:
+    width var(--ecr-dur) var(--ecr-ease),
+    background-color 0.3s ease;
+}
+
+/* Bigger hit area than the dot itself, for touch. */
+.ecr-dot::before {
+  content: "";
+  position: absolute;
+  inset: -0.6rem -0.2rem;
+}
+
+.ecr-dot[aria-current="true"] {
+  width: 1.75rem;
+  background: var(--ecr-ink);
+}
+
+@media (hover: hover) {
+  .ecr-dot:not([aria-current="true"]):hover {
+    background: color-mix(in srgb, var(--ecr-ink) 45%, transparent);
+  }
+}
+
+.ecr-arrows {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.ecr-arrow {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.75rem;
+  height: 2.75rem;
+  margin: 0;
+  padding: 0;
+  border: 2px solid var(--ecr-ink);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--ecr-ink);
+  cursor: pointer;
+  transition:
+    background-color 0.2s ease,
+    color 0.2s ease,
+    transform 0.25s var(--ecr-ease);
+}
+
+.ecr-arrow:hover {
+  background: var(--ecr-ink);
+  color: var(--ecr-bg);
+}
+
+.ecr-arrow:active {
+  transform: scale(0.92);
+}
+
+.ecr-arrow:focus-visible,
+.ecr-dot:focus-visible {
+  outline: 3px solid var(--ecr-accent);
+  outline-offset: 3px;
+}
+
+/* Screen-reader-only announcements. */
+.ecr-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ecr {
+    --ecr-dur: 0.01ms;
+  }
+  .ecr-trigger,
+  .ecr-card.is-active .ecr-trigger,
+  .ecr-body,
+  .ecr-card.is-active .ecr-body,
+  .ecr-socket,
+  .ecr-card.is-active .ecr-socket,
+  .ecr-art,
+  .ecr-scroll-thumb {
+    transition-duration: 0.01ms;
+    transition-delay: 0s;
+  }
+}

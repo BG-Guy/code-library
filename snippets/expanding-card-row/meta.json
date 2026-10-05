@@ -1,0 +1,9 @@
+{
+  "id": "expanding-card-row",
+  "title": "Expanding Card Row",
+  "language": "javascript",
+  "tags": ["animation", "carousel", "spring-physics", "canvas", "accessibility"],
+  "difficulty": "Advanced",
+  "description": "A horizontal row where the open card is wide and the rest are narrow pills with vertical titles. Opening one grows it while the last shrinks and the row glides, all on a single spring clock, and the row scrolls sideways by wheel, touch fling, themed scrollbar, dots or arrow keys.",
+  "preview": { "type": "html", "height": 430 }
+}
